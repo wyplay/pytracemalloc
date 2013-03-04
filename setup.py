@@ -35,7 +35,7 @@ CLASSIFIERS = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-with open('README') as f:
+with open('README.rest') as f:
     long_description = f.read().strip()
 
 def pkg_config(name, arg, strip_prefix=0):
