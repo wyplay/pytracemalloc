@@ -257,6 +257,5 @@ See also
    <http://bugs.python.org/issue3329>`_
  * `Guppy-PE: umbrella package combining Heapy and GSL
    <http://guppy-pe.sourceforge.net/>`_
- * `PySizer <http://pysizer.8325.org/>`_: developed for Python 2.4, does it
-   with Python 2.7?
+ * `PySizer <http://pysizer.8325.org/>`_: developed for Python 2.4
 
