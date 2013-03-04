@@ -73,6 +73,7 @@ options = {
     'description': 'Track memory allocations per Python file',
     'long_description': long_description,
     'url': 'http://www.wyplay.com/',
+    'download_url': 'https://github.com/wyplay/pytracemalloc',
     'author': 'Victor Stinner',
     'author_email': 'vstinner@wyplay.com',
     'ext_modules': [ext],
