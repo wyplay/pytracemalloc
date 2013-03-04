@@ -1,0 +1,10 @@
+include COPYING
+include MANIFEST.in
+include README
+include TODO
+
+include Makefile
+
+include python2.7.patch
+include python3.4.patch
+include python_test_regrtest.patch

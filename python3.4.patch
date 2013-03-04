@@ -1,0 +1,525 @@
+diff -r bc2c40e84b58 Include/objimpl.h
+--- a/Include/objimpl.h	Fri Feb 01 14:06:24 2013 -0800
++++ b/Include/objimpl.h	Mon Mar 04 01:38:16 2013 +0100
+@@ -119,28 +119,15 @@ PyAPI_FUNC(void) _PyObject_DebugCheckAdd
+ PyAPI_FUNC(void *) _PyMem_DebugMalloc(size_t nbytes);
+ PyAPI_FUNC(void *) _PyMem_DebugRealloc(void *p, size_t nbytes);
+ PyAPI_FUNC(void) _PyMem_DebugFree(void *p);
+-#define PyObject_MALLOC         _PyObject_DebugMalloc
+-#define PyObject_Malloc         _PyObject_DebugMalloc
+-#define PyObject_REALLOC        _PyObject_DebugRealloc
+-#define PyObject_Realloc        _PyObject_DebugRealloc
+-#define PyObject_FREE           _PyObject_DebugFree
+-#define PyObject_Free           _PyObject_DebugFree
++#endif
++#endif
+ 
+-#else   /* WITH_PYMALLOC && ! PYMALLOC_DEBUG */
++/* Macros */
+ #define PyObject_MALLOC         PyObject_Malloc
+ #define PyObject_REALLOC        PyObject_Realloc
+ #define PyObject_FREE           PyObject_Free
+-#endif
+-
+-#else   /* ! WITH_PYMALLOC */
+-#define PyObject_MALLOC         PyMem_MALLOC
+-#define PyObject_REALLOC        PyMem_REALLOC
+-#define PyObject_FREE           PyMem_FREE
+-
+-#endif  /* WITH_PYMALLOC */
+-
+ #define PyObject_Del            PyObject_Free
+-#define PyObject_DEL            PyObject_FREE
++#define PyObject_DEL            PyObject_Free
+ 
+ /*
+  * Generic object allocator interface
+diff -r bc2c40e84b58 Include/pymem.h
+--- a/Include/pymem.h	Fri Feb 01 14:06:24 2013 -0800
++++ b/Include/pymem.h	Mon Mar 04 01:38:16 2013 +0100
+@@ -49,6 +49,24 @@ extern "C" {
+    performed on failure (no exception is set, no warning is printed, etc).
+ */
+ 
++#define PY_ALLOC_SYSTEM_API 's'   /* the system API (malloc, realloc, free) */
++#define PY_ALLOC_MEM_API 'm'      /* the PyMem_Malloc() API */
++#define PY_ALLOC_OBJECT_API 'o'   /* The PyObject_Malloc() API */
++
++PyAPI_FUNC(int) Py_GetAllocators(
++    char api,
++    void* (**malloc_p) (size_t),
++    void* (**realloc_p) (void*, size_t),
++    void (**free_p) (void*)
++    );
++
++PyAPI_FUNC(int) Py_SetAllocators(
++    char api,
++    void* (*malloc) (size_t),
++    void* (*realloc) (void*, size_t),
++    void (*free) (void*)
++    );
++
+ PyAPI_FUNC(void *) PyMem_Malloc(size_t);
+ PyAPI_FUNC(void *) PyMem_Realloc(void *, size_t);
+ PyAPI_FUNC(void) PyMem_Free(void *);
+@@ -57,13 +75,6 @@ PyAPI_FUNC(void) PyMem_Free(void *);
+    no longer supported. They used to call PyErr_NoMemory() on failure. */
+ 
+ /* Macros. */
+-#ifdef PYMALLOC_DEBUG
+-/* Redirect all memory operations to Python's debugging allocator. */
+-#define PyMem_MALLOC		_PyMem_DebugMalloc
+-#define PyMem_REALLOC		_PyMem_DebugRealloc
+-#define PyMem_FREE		_PyMem_DebugFree
+-
+-#else	/* ! PYMALLOC_DEBUG */
+ 
+ /* PyMem_MALLOC(0) means malloc(1). Some systems would return NULL
+    for malloc(0), which would be treated as an error. Some platforms
+@@ -71,13 +82,9 @@ PyAPI_FUNC(void) PyMem_Free(void *);
+    pymalloc. To solve these problems, allocate an extra byte. */
+ /* Returns NULL to indicate error if a negative size or size larger than
+    Py_ssize_t can represent is supplied.  Helps prevents security holes. */
+-#define PyMem_MALLOC(n)		((size_t)(n) > (size_t)PY_SSIZE_T_MAX ? NULL \
+-				: malloc((n) ? (n) : 1))
+-#define PyMem_REALLOC(p, n)	((size_t)(n) > (size_t)PY_SSIZE_T_MAX  ? NULL \
+-				: realloc((p), (n) ? (n) : 1))
+-#define PyMem_FREE		free
+-
+-#endif	/* PYMALLOC_DEBUG */
++#define PyMem_MALLOC(n)		PyMem_Malloc(n)
++#define PyMem_REALLOC(p, n)	PyMem_Realloc(p, n)
++#define PyMem_FREE(p)		PyMem_Free(p)
+ 
+ /*
+  * Type-oriented memory interface
+diff -r bc2c40e84b58 Objects/object.c
+--- a/Objects/object.c	Fri Feb 01 14:06:24 2013 -0800
++++ b/Objects/object.c	Mon Mar 04 01:38:16 2013 +0100
+@@ -1856,26 +1856,6 @@ PyTypeObject *_PyCapsule_hack = &PyCapsu
+ Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
+ 
+ 
+-/* Python's malloc wrappers (see pymem.h) */
+-
+-void *
+-PyMem_Malloc(size_t nbytes)
+-{
+-    return PyMem_MALLOC(nbytes);
+-}
+-
+-void *
+-PyMem_Realloc(void *p, size_t nbytes)
+-{
+-    return PyMem_REALLOC(p, nbytes);
+-}
+-
+-void
+-PyMem_Free(void *p)
+-{
+-    PyMem_FREE(p);
+-}
+-
+ void
+ _PyObject_DebugTypeStats(FILE *out)
+ {
+diff -r bc2c40e84b58 Objects/obmalloc.c
+--- a/Objects/obmalloc.c	Fri Feb 01 14:06:24 2013 -0800
++++ b/Objects/obmalloc.c	Mon Mar 04 01:38:16 2013 +0100
+@@ -1,5 +1,181 @@
+ #include "Python.h"
+ 
++/* Python's malloc wrappers (see pymem.h) */
++
++static struct {
++    int init;
++    int use_pymalloc;
++
++    void* (*system_malloc) (size_t);
++    void* (*system_realloc) (void*, size_t);
++    void (*system_free) (void*);
++
++    void* (*mem_malloc) (size_t);
++    void* (*mem_realloc) (void*, size_t);
++    void (*mem_free) (void*);
++
++    void* (*object_malloc) (size_t);
++    void* (*object_realloc) (void*, size_t);
++    void (*object_free) (void*);
++} _PyMem_Allocators = {0, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
++
++#ifndef PYMALLOC_DEBUG
++static void *
++_PyMem_Malloc(size_t nbytes)
++{
++    return _PyMem_Allocators.system_malloc(nbytes);
++}
++
++static void *
++_PyMem_Realloc(void *p, size_t nbytes)
++{
++    return _PyMem_Allocators.system_realloc(p, nbytes);
++}
++
++static void
++_PyMem_Free(void *p)
++{
++    _PyMem_Allocators.system_free(p);
++}
++#endif
++
++static void
++_PyMem_InitSystemAllocators(void)
++{
++    _PyMem_Allocators.init = 1;
++    _PyMem_Allocators.use_pymalloc = 1;
++
++    _PyMem_Allocators.system_malloc = malloc;
++    _PyMem_Allocators.system_realloc = realloc;
++    _PyMem_Allocators.system_free = free;
++
++#ifdef PYMALLOC_DEBUG
++    _PyMem_Allocators.mem_malloc = _PyMem_DebugMalloc;
++    _PyMem_Allocators.mem_realloc = _PyMem_DebugRealloc;
++    _PyMem_Allocators.mem_free = _PyMem_DebugFree;
++#else
++    _PyMem_Allocators.mem_malloc = _PyMem_Malloc;
++    _PyMem_Allocators.mem_realloc = _PyMem_Realloc;
++    _PyMem_Allocators.mem_free = _PyMem_Free;
++#endif
++
++#ifndef WITH_PYMALLOC
++    _PyMem_Allocators.object_malloc = PyMem_Malloc;
++    _PyMem_Allocators.object_free = PyMem_Free;
++    _PyMem_Allocators.object_realloc = PyMem_Realloc;
++#elif defined(PYMALLOC_DEBUG)   /* WITH_PYMALLOC && PYMALLOC_DEBUG */
++    _PyMem_Allocators.object_malloc = _PyObject_DebugMalloc;
++    _PyMem_Allocators.object_free = _PyObject_DebugFree;
++    _PyMem_Allocators.object_realloc = _PyObject_DebugRealloc;
++#else
++    _PyMem_Allocators.object_malloc = _PyObject_Malloc;
++    _PyMem_Allocators.object_free = _PyObject_Free;
++    _PyMem_Allocators.object_realloc = _PyObject_Realloc;
++#endif
++}
++
++#define _PyMem_InitAllocators()                    \
++    do {                                           \
++        if (!_PyMem_Allocators.init)               \
++            _PyMem_InitSystemAllocators();         \
++    } while (0)
++
++int Py_GetAllocators(
++    char api,
++    void* (**malloc_p) (size_t),
++    void* (**realloc_p) (void*, size_t),
++    void (**free_p) (void*)
++    )
++{
++    _PyMem_InitAllocators();
++
++    if (api == PY_ALLOC_SYSTEM_API) {
++        *malloc_p = _PyMem_Allocators.system_malloc;
++        *realloc_p = _PyMem_Allocators.system_realloc;
++        *free_p = _PyMem_Allocators.system_free;
++    }
++    else if (api == PY_ALLOC_MEM_API) {
++        *malloc_p = _PyMem_Allocators.mem_malloc;
++        *realloc_p = _PyMem_Allocators.mem_realloc;
++        *free_p = _PyMem_Allocators.mem_free;
++    }
++    else if (api == PY_ALLOC_OBJECT_API) {
++        *malloc_p = _PyMem_Allocators.object_malloc;
++        *realloc_p = _PyMem_Allocators.object_realloc;
++        *free_p = _PyMem_Allocators.object_free;
++    }
++    else {
++        *malloc_p = NULL;
++        *realloc_p = NULL;
++        *free_p = NULL;
++        return -1;
++    }
++    return 0;
++}
++
++int Py_SetAllocators(
++    char api,
++    void* (*user_malloc) (size_t),
++    void* (*user_realloc) (void*, size_t),
++    void (*user_free) (void*)
++    )
++{
++    _PyMem_InitAllocators();
++
++    if (api == PY_ALLOC_SYSTEM_API) {
++        _PyMem_Allocators.system_malloc = user_malloc;
++        _PyMem_Allocators.system_realloc = user_realloc;
++        _PyMem_Allocators.system_free = user_free;
++    }
++    else if (api == PY_ALLOC_MEM_API) {
++        _PyMem_Allocators.mem_malloc = user_malloc;
++        _PyMem_Allocators.mem_realloc = user_realloc;
++        _PyMem_Allocators.mem_free = user_free;
++    }
++    else if (api == PY_ALLOC_OBJECT_API) {
++        _PyMem_Allocators.object_malloc = user_malloc;
++        _PyMem_Allocators.object_realloc = user_realloc;
++        _PyMem_Allocators.object_free = user_free;
++    }
++    else {
++        return -1;
++    }
++    return 0;
++}
++
++void *
++PyMem_Malloc(size_t nbytes)
++{
++    _PyMem_InitAllocators();
++
++    if (nbytes > (size_t)PY_SSIZE_T_MAX)
++        return NULL;
++    if (nbytes == 0)
++        nbytes = 1;
++
++    return _PyMem_Allocators.mem_malloc(nbytes);
++}
++
++void *
++PyMem_Realloc(void *p, size_t nbytes)
++{
++    _PyMem_InitAllocators();
++
++    if (nbytes > (size_t)PY_SSIZE_T_MAX)
++        return NULL;
++    if (nbytes == 0)
++        nbytes = 1;
++
++    return _PyMem_Allocators.mem_realloc(p, nbytes);
++}
++
++void
++PyMem_Free(void *p)
++{
++    _PyMem_InitAllocators();
++    _PyMem_Allocators.mem_free(p);
++}
++
+ #ifdef WITH_PYMALLOC
+ 
+ #ifdef HAVE_MMAP
+@@ -567,7 +743,7 @@ new_arena(void)
+             return NULL;                /* overflow */
+ #endif
+         nbytes = numarenas * sizeof(*arenas);
+-        arenaobj = (struct arena_object *)realloc(arenas, nbytes);
++        arenaobj = (struct arena_object *)_PyMem_Allocators.system_realloc(arenas, nbytes);
+         if (arenaobj == NULL)
+             return NULL;
+         arenas = arenaobj;
+@@ -769,15 +945,17 @@ int Py_ADDRESS_IN_RANGE(void *P, poolp p
+  * Unless the optimizer reorders everything, being too smart...
+  */
+ 
+-#undef PyObject_Malloc
+-void *
+-PyObject_Malloc(size_t nbytes)
++static void *
++_PyObject_Malloc(size_t nbytes)
+ {
+     block *bp;
+     poolp pool;
+     poolp next;
+     uint size;
+ 
++    if (!_PyMem_Allocators.use_pymalloc)
++        return _PyMem_Allocators.system_malloc(nbytes);
++
+ #ifdef WITH_VALGRIND
+     if (UNLIKELY(running_on_valgrind == -1))
+         running_on_valgrind = RUNNING_ON_VALGRIND;
+@@ -971,18 +1149,24 @@ redirect:
+     if (nbytes == 0)
+         nbytes = 1;
+     {
+-        void *result = malloc(nbytes);
++        void *result = (void *)_PyMem_Allocators.system_malloc(nbytes);
+         if (!result)
+             _Py_AllocatedBlocks--;
+         return result;
+     }
+ }
+ 
++void *
++PyObject_Malloc(size_t nbytes)
++{
++    _PyMem_InitAllocators();
++    return _PyMem_Allocators.object_malloc(nbytes);
++}
++
+ /* free */
+ 
+-#undef PyObject_Free
+-void
+-PyObject_Free(void *p)
++static void
++_PyObject_Free(void *p)
+ {
+     poolp pool;
+     block *lastfree;
+@@ -1204,7 +1388,14 @@ PyObject_Free(void *p)
+ redirect:
+ #endif
+     /* We didn't allocate this address. */
+-    free(p);
++    _PyMem_Allocators.system_free(p);
++}
++
++void
++PyObject_Free(void *p)
++{
++    _PyMem_InitAllocators();
++    _PyMem_Allocators.object_free(p);
+ }
+ 
+ /* realloc.  If p is NULL, this acts like malloc(nbytes).  Else if nbytes==0,
+@@ -1212,9 +1403,8 @@ redirect:
+  * return a non-NULL result.
+  */
+ 
+-#undef PyObject_Realloc
+-void *
+-PyObject_Realloc(void *p, size_t nbytes)
++static void *
++_PyObject_Realloc(void *p, size_t nbytes)
+ {
+     void *bp;
+     poolp pool;
+@@ -1224,7 +1414,7 @@ PyObject_Realloc(void *p, size_t nbytes)
+ #endif
+ 
+     if (p == NULL)
+-        return PyObject_Malloc(nbytes);
++        return _PyObject_Malloc(nbytes);
+ 
+     /*
+      * Limit ourselves to PY_SSIZE_T_MAX bytes to prevent security holes.
+@@ -1261,10 +1451,10 @@ PyObject_Realloc(void *p, size_t nbytes)
+             }
+             size = nbytes;
+         }
+-        bp = PyObject_Malloc(nbytes);
++        bp = _PyObject_Malloc(nbytes);
+         if (bp != NULL) {
+             memcpy(bp, p, size);
+-            PyObject_Free(p);
++            _PyObject_Free(p);
+         }
+         return bp;
+     }
+@@ -1282,17 +1472,24 @@ PyObject_Realloc(void *p, size_t nbytes)
+      * at p.  Instead we punt:  let C continue to manage this block.
+      */
+     if (nbytes)
+-        return realloc(p, nbytes);
++        return _PyMem_Allocators.system_realloc(p, nbytes);
+     /* C doesn't define the result of realloc(p, 0) (it may or may not
+      * return NULL then), but Python's docs promise that nbytes==0 never
+      * returns NULL.  We don't pass 0 to realloc(), to avoid that endcase
+      * to begin with.  Even then, we can't be sure that realloc() won't
+      * return NULL.
+      */
+-    bp = realloc(p, 1);
++    bp = _PyMem_Allocators.system_realloc(p, 1);
+     return bp ? bp : p;
+ }
+ 
++void *
++PyObject_Realloc(void *p, size_t nbytes)
++{
++    _PyMem_InitAllocators();
++    return _PyMem_Allocators.object_realloc(p, nbytes);
++}
++
+ #else   /* ! WITH_PYMALLOC */
+ 
+ /*==========================================================================*/
+@@ -1302,19 +1499,19 @@ PyObject_Realloc(void *p, size_t nbytes)
+ void *
+ PyObject_Malloc(size_t n)
+ {
+-    return PyMem_MALLOC(n);
++    return PyMem_Malloc(n);
+ }
+ 
+ void *
+ PyObject_Realloc(void *p, size_t n)
+ {
+-    return PyMem_REALLOC(p, n);
++    return PyMem_Realloc(p, n);
+ }
+ 
+ void
+ PyObject_Free(void *p)
+ {
+-    PyMem_FREE(p);
++    PyMem_Free(p);
+ }
+ 
+ Py_ssize_t
+@@ -1476,9 +1673,9 @@ void
+ }
+ 
+ 
+-/* generic debug memory api, with an "id" to identify the API in use */
++/* generic debug memory api, with an "api" to identify the API in use */
+ void *
+-_PyObject_DebugMallocApi(char id, size_t nbytes)
++_PyObject_DebugMallocApi(char api, size_t nbytes)
+ {
+     uchar *p;           /* base address of malloc'ed block */
+     uchar *tail;        /* p + 2*SST + nbytes == pointer to tail pad bytes */
+@@ -1490,13 +1687,16 @@ void *
+         /* overflow:  can't represent total as a size_t */
+         return NULL;
+ 
+-    p = (uchar *)PyObject_Malloc(total);
++    if (api == _PYMALLOC_OBJ_ID)
++        p = (uchar *)_PyObject_Malloc(total);
++    else
++        p = (uchar *)_PyMem_Allocators.system_malloc(total);
+     if (p == NULL)
+         return NULL;
+ 
+-    /* at p, write size (SST bytes), id (1 byte), pad (SST-1 bytes) */
++    /* at p, write size (SST bytes), api (1 byte), pad (SST-1 bytes) */
+     write_size_t(p, nbytes);
+-    p[SST] = (uchar)id;
++    p[SST] = (uchar)api;
+     memset(p + SST + 1 , FORBIDDENBYTE, SST-1);
+ 
+     if (nbytes > 0)
+@@ -1528,7 +1728,10 @@ void
+     nbytes += 4*SST;
+     if (nbytes > 0)
+         memset(q, DEADBYTE, nbytes);
+-    PyObject_Free(q);
++    if (api == _PYMALLOC_OBJ_ID)
++        _PyObject_Free(q);
++    else
++        _PyMem_Allocators.system_free(q);
+ }
+ 
+ void *
+@@ -1560,7 +1763,10 @@ void *
+      * case we didn't get the chance to mark the old memory with DEADBYTE,
+      * but we live with that.
+      */
+-    q = (uchar *)PyObject_Realloc(q - 2*SST, total);
++    if (api == _PYMALLOC_OBJ_ID)
++        q = (uchar *)_PyObject_Realloc(q - 2*SST, total);
++    else
++        q = (uchar *)_PyMem_Allocators.system_realloc(q - 2*SST, total);
+     if (q == NULL)
+         return NULL;
+ 

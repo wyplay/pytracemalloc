@@ -1,0 +1,7 @@
+TODO list
+=========
+
+_tracemalloc.c:
+
+ * stop the timer, unregister memory allocators and release memory at exit
+
