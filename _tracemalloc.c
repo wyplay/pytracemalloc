@@ -520,6 +520,8 @@ PyDoc_STRVAR(trace_disable_doc,
 static PyObject*
 py_trace_disable(PyObject *self)
 {
+    printf("py_trace_disable\n");
+
     trace_timer_stop();
 
     if (trace_config.enabled) {
@@ -807,6 +809,48 @@ py_trace_get_source(PyObject *self, PyObject *obj)
     return Py_BuildValue("(NN)", filename, lineno);
 }
 
+static int
+trace_atexit_register(PyObject *module)
+{
+    PyObject *disable = NULL, *atexit = NULL, *func = NULL;
+    PyObject *result;
+    int ret = -1;
+
+    disable = PyObject_GetAttrString(module, "disable");
+    if (disable == NULL)
+        goto done;
+
+    atexit = PyImport_ImportModule("atexit");
+    if (atexit == NULL) {
+        if (!PyErr_Warn(PyExc_ImportWarning,
+                       "atexit module is missing: "
+                       "cannot automatically disable tracemalloc at exit"))
+        {
+            PyErr_Clear();
+            return 0;
+        }
+        goto done;
+    }
+
+    func = PyObject_GetAttrString(atexit, "register");
+    if (func == NULL)
+        goto done;
+
+    result = PyObject_CallFunction(func, "O", disable);
+    if (result == NULL)
+        goto done;
+    Py_DECREF(result);
+
+    ret = 0;
+
+done:
+    Py_XDECREF(disable);
+    Py_XDECREF(func);
+    Py_XDECREF(atexit);
+    return ret;
+}
+
+
 
 static PyMethodDef trace_methods[] = {
     {"enable", (PyCFunction)py_trace_enable, METH_NOARGS, trace_enable_doc},
@@ -844,35 +888,38 @@ init_tracemalloc(void)
 {
     PyObject *m, *version;
 
-    if (trace_init() < 0) {
-#ifdef PYTHON3
-        return NULL;
-#else
-        return;
-#endif
-    }
+    if (trace_init() < 0)
+        goto error;
 
 #ifdef PYTHON3
     m = PyModule_Create(&sandbox_module);
-    if (m == NULL)
-        return NULL;
 #else
     m = Py_InitModule3("_tracemalloc", trace_methods, trace_doc);
-    if (m == NULL)
-        return;
 #endif
+    if (m == NULL)
+        goto error;
 
 #ifdef PYTHON3
     version = PyUnicode_FromString(VERSION);
-    if (version == NULL)
-        return NULL;
 #else
     version = PyString_FromString(VERSION);
 #endif
+    if (version == NULL)
+        goto error;
     PyModule_AddObject(m, "__version__", version);
+
+    if (trace_atexit_register(m) < 0)
+        goto error;
 
 #ifdef PYTHON3
     return m;
+#endif
+
+error:
+#ifdef PYTHON3
+    return NULL;
+#else
+    return;
 #endif
 }
 
