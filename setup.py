@@ -2,7 +2,7 @@
 
 # Todo list to prepare a release:
 #  - update VERSION in _tracemalloc.c and setup.py
-#  - set release date in the README file
+#  - set release date in the README.rst file
 #  - git commit -a
 #  - git tag -a tracemalloc-VERSION
 #  - git push --tags
@@ -35,7 +35,7 @@ CLASSIFIERS = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-with open('README.rest') as f:
+with open('README.rst') as f:
     long_description = f.read().strip()
 
 def pkg_config(name, arg, strip_prefix=0):

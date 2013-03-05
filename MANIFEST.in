@@ -1,6 +1,6 @@
 include COPYING
 include MANIFEST.in
-include README.rest
+include README.rst
 include TODO
 
 include Makefile
