@@ -20,7 +20,7 @@ import os
 import subprocess
 import sys
 
-VERSION = '0.7'
+VERSION = '0.8'
 
 CLASSIFIERS = [
     'Development Status :: 3 - Alpha',
