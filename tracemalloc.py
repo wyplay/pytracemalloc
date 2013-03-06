@@ -116,7 +116,7 @@ class DisplayTop:
 
     def _compute_stats(self, raw_stats, want_snapshot=False):
         if self._snapshot is not None:
-            snapshot = self._snapshot.copy()
+            snapshot = self._snapshot[0].copy()
         else:
             snapshot = None
 
@@ -174,13 +174,13 @@ class DisplayTop:
         else:
             stats.sort(key=_sort_by_size, reverse=True)
 
-        if name is None:
-            name = _get_timestamp()
         count = min(self.top_count, len(stats))
         if self.show_lineno:
             text = "file and line"
         else:
             text = "file"
+        if self._snapshot is not None:
+            text += ' (compared to %s)' % self._snapshot[1]
         log("%s: Top %s allocations per %s\n" % (name, count, text))
 
         other = _TopTrace()
@@ -215,10 +215,12 @@ class DisplayTop:
 
         if raw_stats is None:
             raw_stats = get_stats()
+        if name is None:
+            name = _get_timestamp()
         stats, snapshot = self._compute_stats(raw_stats, save_snapshot)
         self._display_stats(stats, name)
         if save_snapshot:
-            self._snapshot = snapshot
+            self._snapshot = (snapshot, name)
 
     def display(self):
         self._run()
