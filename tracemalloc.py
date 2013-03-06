@@ -293,17 +293,20 @@ class Snapshot:
         with open(filename, "wb") as fp:
             pickle.dump(data, fp, pickle.HIGHEST_PROTOCOL)
 
-    def filter_filenames(self, pattern, include):
+    def filter_filenames(self, patterns, include):
         import fnmatch
         new_stats = {}
         for filename, file_stats in _iteritems(self.stats):
-            match = fnmatch.fnmatch(filename, pattern)
             if include:
-                if not match:
-                    continue
+                ignore = all(
+                    not fnmatch.fnmatch(filename, pattern)
+                    for pattern in patterns)
             else:
-                if match:
-                    continue
+                ignore = any(
+                    fnmatch.fnmatch(filename, pattern)
+                    for pattern in patterns)
+            if ignore:
+                continue
             new_stats[filename] = file_stats
         self.stats = new_stats
 
@@ -362,10 +365,10 @@ def main():
         action="store_true", default=False)
     parser.add_option("--include", metavar="MATCH",
         help="Only include filenames matching pattern MATCH",
-        action="store", type=str)
+        action="append", type=str)
     parser.add_option("--exclude", metavar="MATCH",
         help="Exclude filenames matching pattern MATCH",
-        action="store", type=str)
+        action="append", type=str)
     parser.add_option("-S", "--hide-size",
         help="Hide the size of allocations",
         action="store_true", default=False)
