@@ -88,7 +88,18 @@ To display and compare snapshots, use the following command::
 
     python -m tracemalloc trace1.pickle [trace2.pickle trace3.pickle ...]
 
-To get the help, type::
+Useful options:
+
+ * ``--line-number`` (``-l``): use also the line number to group
+   Python memory allocations
+ * ``--first``: compare with the first trace, instead of with the previous
+   trace
+ * ``--include=MATCH``: Only include filenames matching pattern MATCH,
+   the option can be specified multiple times
+ * ``--exclude=MATCH``: Exclude filenames matching pattern MATCH,
+   the option can be specified multiple times
+
+Display the help to see more options to customize the display, type::
 
     python -m tracemalloc --help
 
@@ -237,6 +248,8 @@ Changelog
 Version 0.8
 
  - automatically disable tracemalloc at exit
+ - display the name of the previous snapshot when comparing snapshots
+ - --include and --exclude options can be specified multiple times
 
 Version 0.7 (2013-03-04)
 

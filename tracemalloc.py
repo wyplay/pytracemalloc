@@ -364,10 +364,12 @@ def main():
         help="Compare with the first trace, instead of with the previous trace",
         action="store_true", default=False)
     parser.add_option("--include", metavar="MATCH",
-        help="Only include filenames matching pattern MATCH",
+        help="Only include filenames matching pattern MATCH, "
+             "the option can be specified multiple times",
         action="append", type=str)
     parser.add_option("--exclude", metavar="MATCH",
-        help="Exclude filenames matching pattern MATCH",
+        help="Exclude filenames matching pattern MATCH, "
+             "the option can be specified multiple times",
         action="append", type=str)
     parser.add_option("-S", "--hide-size",
         help="Hide the size of allocations",
