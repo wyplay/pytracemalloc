@@ -266,4 +266,9 @@ See also
  * `Guppy-PE: umbrella package combining Heapy and GSL
    <http://guppy-pe.sourceforge.net/>`_
  * `PySizer <http://pysizer.8325.org/>`_: developed for Python 2.4
+ * `memory_profiler <https://pypi.python.org/pypi/memory_profiler>`_
+ * `pympler <http://code.google.com/p/pympler/>`_
+ * `Dozer <https://pypi.python.org/pypi/Dozer>`_: WSGI Middleware version of
+   the CherryPy memory leak debugger
+ * Python 3.4 now counts the total number of allocated blocks
 
