@@ -540,7 +540,7 @@ def main():
 
 
 if __name__ == "__main__":
-    if 1:
+    if 0:
         import cProfile
         cProfile.run('main()', sort='tottime')
     else:
