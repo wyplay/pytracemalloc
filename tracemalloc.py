@@ -16,11 +16,11 @@ else:
 
 def _sort_by_size(item):
     trace = item[2]
-    return (trace.size, trace.count)
+    return (trace[0], trace[2])
 
 def _sort_by_size_diff(item):
     trace = item[2]
-    return (trace.size_diff, trace.size, trace.count_diff, trace.count)
+    return (trace[1], trace[0], trace[3], trace[2])
 
 def _get_timestamp():
     return str(datetime.datetime.now()).split(".")[0]
@@ -100,61 +100,14 @@ def get_process_memory():
 get_process_memory.support_proc = None
 get_process_memory.psutil_process = None
 
-class _TopTrace:
-    __slots__ = ('size', 'size_diff', 'count', 'count_diff')
 
-    def __init__(self, size=0, size_diff=0, count=0, count_diff=0):
-        self.size = size
-        self.size_diff = size_diff
-        self.count = count
-        self.count_diff = count_diff
-
-    def add(self, trace):
-        self.size += trace.size
-        self.size_diff += trace.size_diff
-        self.count += trace.count
-        self.count_diff += trace.count_diff
-
-    def use_snapshot(self, previous):
-        if previous is not None:
-            self.size_diff = self.size - previous.size
-            self.count_diff = self.count - previous.count
-        else:
-            self.size_diff = self.size
-            self.count_diff = self.count
-
-    def format(self, display_top, show_diff):
-        if not display_top.show_count and not display_top.show_average:
-            if show_diff:
-                return _format_size_diff(self.size, self.size_diff, display_top.color)
-            else:
-                return _format_size(self.size, display_top.color)
-
-        parts = []
-        if (display_top.show_size
-        and (self.size or self.size_diff or not display_top.show_count)):
-            if show_diff:
-                text = _format_size_diff(self.size, self.size_diff, display_top.color)
-            else:
-                text = _format_size(self.size, display_top.color)
-            parts.append("size=%s" % text)
-        if display_top.show_count and (self.count or self.count_diff):
-            text = "count=%s" % self.count
-            if self.count_diff is not None:
-                text += " (%+i)" % self.count_diff
-            parts.append(text)
-        if (display_top.show_average
-        and self.count > 1):
-            parts.append('average=%s' % _format_size(self.size // self.count, False))
-        return ', '.join(parts)
-
+_TRACE_ZERO = (0, 0, 0, 0)
 
 class _TopSnapshot:
     def __init__(self, top):
         self.name = top.name
         self.stats = top.snapshot_stats
         self.process_memory = top.process_memory
-
 
 class _Top:
     __slots__ = (
@@ -194,10 +147,12 @@ class _Top:
                 for lineno, item in _iteritems(line_dict):
                     key = (filename, lineno)
 
-                    trace = _TopTrace(size=item[0], count=item[1])
+                    size, count = item
                     if snapshot is not None:
-                        previous = snapshot.pop(key, None)
-                        trace.use_snapshot(previous)
+                        previous = snapshot.pop(key, _TRACE_ZERO)
+                        trace = (size, size - previous[0], count, count - previous[2])
+                    else:
+                        trace = (size, 0, count, 0)
                     if lineno is None:
                         lineno = "?"
                     stats.append((filename, lineno, trace))
@@ -205,13 +160,15 @@ class _Top:
                         new_snapshot[key] = trace
             else:
                 key = (filename, None)
-                trace = _TopTrace()
+                trace = [0, 0, 0, 0]
                 for lineno, item in _iteritems(line_dict):
-                    trace.size += item[0]
-                    trace.count += item[1]
+                    trace[0] += item[0]
+                    trace[2] += item[1]
                 if snapshot is not None:
-                    previous = snapshot.pop(key, None)
-                    trace.use_snapshot(previous)
+                    previous = snapshot.pop(key, _TRACE_ZERO)
+                    trace[1] = trace[0] - previous[0]
+                    trace[3] = trace[2] - previous[2]
+                trace = tuple(trace)
                 stats.append((filename, None, trace))
                 if want_snapshot:
                     new_snapshot[key] = trace
@@ -222,7 +179,7 @@ class _Top:
                     filename, lineno = key
                 else:
                     filename, lineno = key
-                trace = _TopTrace(size_diff=-trace.size, count_diff=-trace.count)
+                trace = [0, -trace[0], 0, -trace[2]]
                 stats.append((filename, lineno, trace))
 
         self.top_stats = stats
@@ -230,7 +187,7 @@ class _Top:
         self.tracemalloc_size = tracemalloc_size
         if self.real_process_memory:
             size = self.real_process_memory - self.tracemalloc_size
-            self.process_memory = _TopTrace(size)
+            self.process_memory = size
 
 
 class DisplayTop:
@@ -255,6 +212,30 @@ class DisplayTop:
             parts = ['...'] + parts[-self.filename_parts:]
         return os.path.sep.join(parts)
 
+    def _format_trace(self, trace, show_diff):
+        if not self.show_count and not self.show_average:
+            if show_diff:
+                return _format_size_diff(trace[0], trace[1], self.color)
+            else:
+                return _format_size(trace[0], self.color)
+
+        parts = []
+        if (self.show_size
+        and (trace[0] or trace[1] or not self.show_count)):
+            if show_diff:
+                text = _format_size_diff(trace[0], trace[1], self.color)
+            else:
+                text = _format_size(trace[0], self.color)
+            parts.append("size=%s" % text)
+        if self.show_count and (trace[2] or trace[3]):
+            text = "count=%s" % trace[2]
+            if trace[3] is not None:
+                text += " (%+i)" % trace[3]
+            parts.append(text)
+        if (self.show_average
+        and trace[2] > 1):
+            parts.append('average=%s' % _format_size(trace[0] // trace[2], False))
+        return ', '.join(parts)
 
     def _display(self, top):
         log = self.stream.write
@@ -282,37 +263,47 @@ class DisplayTop:
             name = _FORMAT_BOLD % name
         log("%s: %s\n" % (name, text))
 
-        other = _TopTrace()
-        total = _TopTrace()
+        total = [0, 0, 0, 0]
+        other = None
         for index, item in enumerate(stats):
             filename, lineno, trace = item
             if index < self.top_count:
                 filename = self.cleanup_filename(filename)
                 if lineno is not None:
                     filename = "%s:%s" % (filename, lineno)
-                text = trace.format(self, has_snapshot)
+                text = self._format_trace(trace, has_snapshot)
                 if self.color:
                     path, basename = os.path.split(filename)
                     if path:
                         path += os.path.sep
                     filename = _FORMAT_CYAN % path + basename
                 log("#%s: %s: %s\n" % (1 + index, filename, text))
-            else:
-                other.add(trace)
-            total.add(trace)
+            elif other is None:
+                other = tuple(total)
+            total[0] += trace[0]
+            total[1] += trace[1]
+            total[2] += trace[2]
+            total[3] += trace[3]
 
         nother = len(stats) - self.top_count
         if nother > 0:
-            text = other.format(self, has_snapshot)
+            other = [
+                total[0] - other[0],
+                total[1] - other[1],
+                total[2] - other[2],
+                total[3] - other[3],
+            ]
+            text = self._format_trace(other, has_snapshot)
             log("%s more: %s\n" % (nother, text))
 
-        text = total.format(self, has_snapshot)
+        text = self._format_trace(total, has_snapshot)
         log("Total Python memory: %s\n" % text)
 
         if top.process_memory:
+            trace = [top.process_memory, 0, 0, 0]
             if has_snapshot:
-                top.process_memory.use_snapshot(snapshot.process_memory)
-            text = top.process_memory.format(self, has_snapshot)
+                trace[1] = trace[0] - snapshot.process_memory
+            text = self._format_trace(trace, has_snapshot)
             ignore = (" (ignore tracemalloc: %s)"
                           % _format_size(top.tracemalloc_size, False))
             if self.color:
@@ -559,7 +550,7 @@ def main():
 
 
 if __name__ == "__main__":
-    if 0:
+    if 1:
         import cProfile
         cProfile.run('main()', sort='tottime')
     else:
