@@ -262,8 +262,9 @@ Version 0.8
  - the top does also display the memory usage of the whole process
  - automatically disable tracemalloc at exit
  - display the name of the previous snapshot when comparing snapshots
- - --include and --exclude options can be specified multiple times
- - add --debug command line option
+ - add --color and --no-color command line options
+ - --include and --exclude command line options can now be specified multiple
+   times
 
 Version 0.7 (2013-03-04)
 

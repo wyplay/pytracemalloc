@@ -38,10 +38,22 @@ def __format_size(size, sign=False):
         else:
             return "%i B" % size
 
-def _format_size(size, diff=None):
+_FORMAT_YELLOW = '\x1b[1;33m%s\x1b[0m'
+_FORMAT_BOLD = '\x1b[1m%s\x1b[0m'
+_FORMAT_CYAN = '\x1b[36m%s\x1b[0m'
+
+def _format_size(size, diff=None, color=False):
     text = __format_size(size)
     if diff is not None:
-        text += " (%s)" % __format_size(diff, sign=True)
+        if color:
+            text = _FORMAT_BOLD % text
+        textdiff = __format_size(diff, sign=True)
+        if color:
+            textdiff = _FORMAT_YELLOW % textdiff
+        text += " (%s)" % textdiff
+    else:
+        if color:
+            text = _FORMAT_YELLOW % text
     return text
 
 def get_process_memory():
@@ -116,12 +128,12 @@ class _TopTrace:
 
     def format(self, display_top):
         if not display_top.show_count and not display_top.show_average:
-            return _format_size(self.size, self.size_diff)
+            return _format_size(self.size, self.size_diff, display_top.color)
 
         parts = []
         if (display_top.show_size
         and (self.size or self.size_diff or not display_top.show_count)):
-            parts.append("size=%s" % _format_size(self.size, self.size_diff))
+            parts.append("size=%s" % _format_size(self.size, self.size_diff, display_top.color))
         if display_top.show_count and (self.count or self.count_diff):
             text = "count=%s" % self.count
             if self.count_diff is not None:
@@ -233,7 +245,7 @@ class DisplayTop:
         else:
             self.stream = sys.stdout
         self.compare_with_previous = True
-        self.debug = False
+        self.color = self.stream.isatty()
 
     def cleanup_filename(self, filename):
         parts = filename.split(os.path.sep)
@@ -257,9 +269,15 @@ class DisplayTop:
             text = "file and line"
         else:
             text = "file"
+        text = "Top %s allocations per %s" % (count, text)
+        if self.color:
+            text = _FORMAT_CYAN % text
         if snapshot is not None:
             text += ' (compared to %s)' % snapshot.name
-        log("%s: Top %s allocations per %s\n" % (top.name, count, text))
+        name = top.name
+        if self.color:
+            name = _FORMAT_BOLD % name
+        log("%s: %s\n" % (name, text))
 
         other = _TopTrace()
         total = _TopTrace()
@@ -270,6 +288,11 @@ class DisplayTop:
                 if lineno is not None:
                     filename = "%s:%s" % (filename, lineno)
                 text = trace.format(self)
+                if self.color:
+                    path, basename = os.path.split(filename)
+                    if path:
+                        path += os.path.sep
+                    filename = _FORMAT_CYAN % path + basename
                 log("#%s: %s: %s\n" % (1 + index, filename, text))
             else:
                 other.add(trace)
@@ -280,17 +303,25 @@ class DisplayTop:
             text = other.format(self)
             log("%s more: %s\n" % (nother, text))
 
-        if self.debug:
-            log("ignored tracemalloc memory: %s\n"
-                % _format_size(top.tracemalloc_size))
-
         text = total.format(self)
         log("Total Python memory: %s\n" % text)
 
         if top.process_memory:
             if snapshot is not None:
                 top.process_memory.use_snapshot(snapshot.process_memory)
-            log("Total process memory: %s\n" % top.process_memory.format(self))
+            text = top.process_memory.format(self)
+            ignore = (" (ignore tracemalloc: %s)"
+                          % _format_size(top.tracemalloc_size))
+            if self.color:
+                ignore = _FORMAT_CYAN % ignore
+            text += ignore
+            log("Total process memory: %s\n" % text)
+        else:
+            text = ("Ignore tracemalloc: %s"
+                    % _format_size(top.tracemalloc_size))
+            if self.color:
+                text = _FORMAT_CYAN % text
+            log(text + "\n")
 
         log("\n")
         self.stream.flush()
@@ -475,8 +506,11 @@ def main():
     parser.add_option("-P", "--filename-parts",
         help="Number of displayed filename parts (default: 3)",
         type="int", action="store", default=3)
-    parser.add_option("--debug",
-        help="Display debug information",
+    parser.add_option("--color",
+        help="Enable colors even if stdout is not a TTY",
+        action="store_true", default=False)
+    parser.add_option("--no-color",
+        help="Disable colors",
         action="store_true", default=False)
 
     options, filenames = parser.parse_args()
@@ -510,9 +544,13 @@ def main():
     top.show_lineno = options.line_number
     top.show_size = not options.hide_size
     top.compare_with_previous = not options.first
+    if options.color:
+        top.color = True
+    elif options.no_color:
+        top.color = False
+
     for snapshot in snapshots:
         snapshot.display(top, show_pid=show_pid)
-    top.debug = options.debug
 
     print("%s snapshots" % len(snapshots))
 
