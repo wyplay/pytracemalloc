@@ -16,10 +16,12 @@ else:
 
 def _sort_by_size(item):
     trace = item[2]
+    # (size, count)
     return (trace[0], trace[2])
 
 def _sort_by_size_diff(item):
     trace = item[2]
+    # (size_diff, size, count_diff, count)
     return (trace[1], trace[0], trace[3], trace[2])
 
 def _get_timestamp():
