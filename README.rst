@@ -250,6 +250,7 @@ Version 0.8
  - automatically disable tracemalloc at exit
  - display the name of the previous snapshot when comparing snapshots
  - --include and --exclude options can be specified multiple times
+ - add --debug command line option
 
 Version 0.7 (2013-03-04)
 

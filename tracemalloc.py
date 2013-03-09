@@ -44,6 +44,29 @@ def _format_size(size, diff=None):
         text += " (%s)" % __format_size(diff, sign=True)
     return text
 
+def _get_process_memory():
+    if _get_process_memory.support_proc == False:
+        return None
+    try:
+        fp = open("/proc/self/status")
+    except OSError:
+        _get_process_memory.support_proc = False
+        return None
+
+    _get_process_memory.support_proc = True
+    with fp:
+        for line in fp:
+            if not(line.startswith("VmRSS:") and line.endswith(" kB\n")):
+                continue
+            value = line[6:-4].strip()
+            value = int(value) * 1024
+            return value
+
+    # VmRss not found in /proc/self/status
+    _get_process_memory.support_proc = False
+    return None
+_get_process_memory.support_proc = None
+
 class _TopTrace:
     __slots__ = ('size', 'size_diff', 'count', 'count_diff')
 
@@ -76,47 +99,50 @@ class _TopTrace:
             self.size_diff = self.size
             self.count_diff = self.count
 
-    def format(self, top):
-        if not top.show_count and not top.show_average:
+    def format(self, display_top):
+        if not display_top.show_count and not display_top.show_average:
             return _format_size(self.size, self.size_diff)
 
         parts = []
-        if top.show_size and (self.size or self.size_diff or not top.show_count):
+        if (display_top.show_size
+        and (self.size or self.size_diff or not display_top.show_count)):
             parts.append("size=%s" % _format_size(self.size, self.size_diff))
-        if top.show_count:
+        if display_top.show_count and (self.count or self.count_diff):
             text = "count=%s" % self.count
             if self.count_diff is not None:
                 text += " (%+i)" % self.count_diff
             parts.append(text)
-        if top.show_average and self.count > 1:
+        if (display_top.show_average
+        and self.count > 1):
             parts.append('average=%s' % _format_size(self.size // self.count))
         return ', '.join(parts)
 
 
-class DisplayTop:
-    def __init__(self, top_count, file=None):
-        self.top_count = top_count
-        self._snapshot = None
-        self.show_lineno = False
-        self.show_size = True
-        self.show_count = True
-        self.show_average = True
-        self.filename_parts = 3
-        if file is not None:
-            self.stream = file
-        else:
-            self.stream = sys.stdout
-        self.compare_with_previous = True
+class _TopSnapshot:
+    def __init__(self, top):
+        self.name = top.name
+        self.stats = top.snapshot_stats
+        self.process_memory = top.process_memory
 
-    def cleanup_filename(self, filename):
-        parts = filename.split(os.path.sep)
-        if self.filename_parts < len(parts):
-            parts = ['...'] + parts[-self.filename_parts:]
-        return os.path.sep.join(parts)
 
-    def _compute_stats(self, raw_stats, want_snapshot=False):
-        if self._snapshot is not None:
-            snapshot = self._snapshot[0].copy()
+class _Top:
+    __slots__ = (
+        'name', 'raw_stats', 'real_process_memory',
+        'top_stats', 'snapshot_stats', 'tracemalloc_size', 'process_memory')
+
+    def __init__(self, name, raw_stats, real_process_memory):
+        self.name = name
+        self.raw_stats = raw_stats
+        self.real_process_memory = real_process_memory
+
+        self.top_stats = None
+        self.snapshot_stats = None
+        self.tracemalloc_size = None
+        self.process_memory = None
+
+    def compute(self, display_top, want_snapshot):
+        if display_top._snapshot is not None:
+            snapshot = display_top._snapshot.stats.copy()
         else:
             snapshot = None
 
@@ -125,11 +151,15 @@ class DisplayTop:
             new_snapshot = {}
         else:
             new_snapshot = None
-        for filename, line_dict in _iteritems(raw_stats):
+        tracemalloc_size = 0
+        for filename, line_dict in _iteritems(self.raw_stats):
             if os.path.basename(filename) == "tracemalloc.py":
+                tracemalloc_size += sum(
+                    item[0]
+                    for lineno, item in _iteritems(line_dict))
                 # ignore allocations in this file
                 continue
-            if self.show_lineno:
+            if display_top.show_lineno:
                 for lineno, item in _iteritems(line_dict):
                     key = (filename, lineno)
 
@@ -157,19 +187,52 @@ class DisplayTop:
 
         if snapshot is not None:
             for key, trace in _iteritems(snapshot):
-                if self.show_lineno:
+                if display_top.show_lineno:
                     filename, lineno = key
                 else:
                     filename, lineno = key
                 trace = _TopTrace(size_diff=-trace.size, count_diff=-trace.count)
                 stats.append((filename, lineno, trace))
 
-        return stats, new_snapshot
+        self.top_stats = stats
+        self.snapshot_stats = new_snapshot
+        self.tracemalloc_size = tracemalloc_size
+        if self.real_process_memory:
+            size = self.real_process_memory - self.tracemalloc_size
+            self.process_memory = _TopTrace(size)
 
-    def _display_stats(self, stats, name):
+
+
+
+class DisplayTop:
+    def __init__(self, top_count, file=None):
+        self.top_count = top_count
+        self._snapshot = None
+        self.show_lineno = False
+        self.show_size = True
+        self.show_count = True
+        self.show_average = True
+        self.filename_parts = 3
+        if file is not None:
+            self.stream = file
+        else:
+            self.stream = sys.stdout
+        self.compare_with_previous = True
+        self.debug = False
+
+    def cleanup_filename(self, filename):
+        parts = filename.split(os.path.sep)
+        if self.filename_parts < len(parts):
+            parts = ['...'] + parts[-self.filename_parts:]
+        return os.path.sep.join(parts)
+
+
+    def _display(self, top):
         log = self.stream.write
+        snapshot = self._snapshot
 
-        if self._snapshot is not None:
+        stats = top.top_stats
+        if snapshot is not None:
             stats.sort(key=_sort_by_size_diff, reverse=True)
         else:
             stats.sort(key=_sort_by_size, reverse=True)
@@ -179,9 +242,9 @@ class DisplayTop:
             text = "file and line"
         else:
             text = "file"
-        if self._snapshot is not None:
-            text += ' (compared to %s)' % self._snapshot[1]
-        log("%s: Top %s allocations per %s\n" % (name, count, text))
+        if snapshot is not None:
+            text += ' (compared to %s)' % snapshot.name
+        log("%s: Top %s allocations per %s\n" % (top.name, count, text))
 
         other = _TopTrace()
         total = _TopTrace()
@@ -202,28 +265,37 @@ class DisplayTop:
             text = other.format(self)
             log("%s more: %s\n" % (nother, text))
 
+        if self.debug:
+            log("ignored tracemalloc memory: %s\n"
+                % _format_size(top.tracemalloc_size))
+
         text = total.format(self)
-        log("Total: %s\n" % text)
+        log("Total Python memory: %s\n" % text)
+
+        if top.process_memory:
+            if snapshot is not None:
+                top.process_memory.use_snapshot(snapshot.process_memory)
+            log("Total process memory: %s\n" % top.process_memory.format(self))
 
         log("\n")
         self.stream.flush()
 
-    def _run(self, raw_stats=None, name=None):
+    def _run(self, top):
         save_snapshot = self.compare_with_previous
         if self._snapshot is None:
             save_snapshot = True
 
-        if raw_stats is None:
-            raw_stats = get_stats()
-        if name is None:
-            name = _get_timestamp()
-        stats, snapshot = self._compute_stats(raw_stats, save_snapshot)
-        self._display_stats(stats, name)
+        top.compute(self, save_snapshot)
+        self._display(top)
         if save_snapshot:
-            self._snapshot = (snapshot, name)
+            self._snapshot = _TopSnapshot(top)
 
     def display(self):
-        self._run()
+        name = _get_timestamp()
+        raw_stats = get_stats()
+        process_memory = _get_process_memory()
+        top = _Top(name, raw_stats, process_memory)
+        self._run(top)
 
     def start(self, delay):
         start_timer(int(delay), self.display)
@@ -246,17 +318,19 @@ def _lazy_import_pickle():
 class Snapshot:
     FORMAT_VERSION = 1
 
-    def __init__(self, stats, timestamp, pid):
+    def __init__(self, stats, timestamp, pid, process_memory):
         self.stats = stats
         self.timestamp = timestamp
         self.pid = pid
+        self.process_memory = process_memory
 
     @classmethod
     def create(cls):
         timestamp = _get_timestamp()
         stats = get_stats()
         pid = os.getpid()
-        return cls(stats, timestamp, pid)
+        process_memory = _get_process_memory()
+        return cls(stats, timestamp, pid, process_memory)
 
     @classmethod
     def load(cls, filename):
@@ -276,10 +350,11 @@ class Snapshot:
             stats = data['stats']
             timestamp = data['timestamp']
             pid = data['pid']
+            process_memory = data.get('process_memory')
         except KeyError:
             raise TypeError("invalid file format")
 
-        return cls(stats, timestamp, pid)
+        return cls(stats, timestamp, pid, process_memory)
 
     def write(self, filename):
         pickle = _lazy_import_pickle()
@@ -288,6 +363,7 @@ class Snapshot:
             'timestamp': self.timestamp,
             'stats': self.stats,
             'pid': self.pid,
+            'process_memory': self.process_memory,
         }
 
         with open(filename, "wb") as fp:
@@ -310,11 +386,12 @@ class Snapshot:
             new_stats[filename] = file_stats
         self.stats = new_stats
 
-    def display(self, top, show_pid=False):
+    def display(self, display_top, show_pid=False):
         name = self.timestamp
         if show_pid:
             name += ' [pid %s]' % self.pid
-        top._run(self.stats, name)
+        top = _Top(name, self.stats, self.process_memory)
+        display_top._run(top)
 
 
 class TakeSnapshot:
@@ -383,6 +460,9 @@ def main():
     parser.add_option("-P", "--filename-parts",
         help="Number of displayed filename parts (default: 3)",
         type="int", action="store", default=3)
+    parser.add_option("--debug",
+        help="Display debug information",
+        action="store_true", default=False)
 
     options, filenames = parser.parse_args()
     if not filenames:
@@ -417,6 +497,7 @@ def main():
     top.compare_with_previous = not options.first
     for snapshot in snapshots:
         snapshot.display(top, show_pid=show_pid)
+    top.debug = options.debug
 
     print("%s snapshots" % len(snapshots))
 
