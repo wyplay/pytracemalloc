@@ -123,6 +123,8 @@ Dependencies:
 
  * `Python <http://www.python.org>`_ 2.5 - 3.4
  * `glib <http://www.gtk.org>`_ version 2
+ * (optional) `psutil <https://pypi.python.org/pypi/psutil>`_ to get the
+   process memory
 
 Install::
 
@@ -151,6 +153,15 @@ disable():
 
    Stop tracing Python memory allocations
    and stop the timer started by start_timer().
+
+get_process_memory()
+
+   Get the memory usage of the current process in bytes.
+   Return None if the platform is not supported.
+
+   Use the psutil module if available.
+
+   New in pytracemalloc 0.8.
 
 get_source(obj) -> (filename: str, lineno: int)
 
@@ -247,6 +258,8 @@ Changelog
 
 Version 0.8
 
+ - add get_process_memory() function
+ - the top does also display the memory usage of the whole process
  - automatically disable tracemalloc at exit
  - display the name of the previous snapshot when comparing snapshots
  - --include and --exclude options can be specified multiple times

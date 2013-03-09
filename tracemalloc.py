@@ -44,16 +44,30 @@ def _format_size(size, diff=None):
         text += " (%s)" % __format_size(diff, sign=True)
     return text
 
-def _get_process_memory():
-    if _get_process_memory.support_proc == False:
-        return None
+def get_process_memory():
+    if get_process_memory.psutil_process is None:
+        try:
+            import psutil
+        except ImportError:
+            get_process_memory.psutil_process = False
+        else:
+            pid = os.getpid()
+            get_process_memory.psutil_process = psutil.Process(pid)
+
+    if get_process_memory.psutil_process != False:
+        meminfo = get_process_memory.psutil_process.get_memory_info()
+        return meminfo.rss
+
+    if get_process_memory.support_proc == False:
+        return
+
     try:
         fp = open("/proc/self/status")
-    except OSError:
-        _get_process_memory.support_proc = False
+    except IOError:
+        get_process_memory.support_proc = False
         return None
 
-    _get_process_memory.support_proc = True
+    get_process_memory.support_proc = True
     with fp:
         for line in fp:
             if not(line.startswith("VmRSS:") and line.endswith(" kB\n")):
@@ -63,9 +77,10 @@ def _get_process_memory():
             return value
 
     # VmRss not found in /proc/self/status
-    _get_process_memory.support_proc = False
+    get_process_memory.support_proc = False
     return None
-_get_process_memory.support_proc = None
+get_process_memory.support_proc = None
+get_process_memory.psutil_process = None
 
 class _TopTrace:
     __slots__ = ('size', 'size_diff', 'count', 'count_diff')
@@ -293,7 +308,7 @@ class DisplayTop:
     def display(self):
         name = _get_timestamp()
         raw_stats = get_stats()
-        process_memory = _get_process_memory()
+        process_memory = get_process_memory()
         top = _Top(name, raw_stats, process_memory)
         self._run(top)
 
@@ -329,7 +344,7 @@ class Snapshot:
         timestamp = _get_timestamp()
         stats = get_stats()
         pid = os.getpid()
-        process_memory = _get_process_memory()
+        process_memory = get_process_memory()
         return cls(stats, timestamp, pid, process_memory)
 
     @classmethod

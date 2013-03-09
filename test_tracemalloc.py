@@ -28,6 +28,15 @@ class TestTracemalloc(unittest.TestCase):
         source = tracemalloc.get_source(obj)
         self.assertEqual(source, obj_source)
 
+    def test_get_process_memory(self):
+        obj_size = 12345
+        orig = tracemalloc.get_process_memory()
+        if orig is None:
+            self.skipTest("get_process_memory is not supported")
+        obj, obj_source = allocate_bytes(obj_size)
+        curr = tracemalloc.get_process_memory()
+        self.assertGreaterEqual(curr - orig, obj_size)
+
     def test_get_stats(self):
         total = 0
         count = 0
