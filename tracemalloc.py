@@ -42,7 +42,13 @@ _FORMAT_YELLOW = '\x1b[1;33m%s\x1b[0m'
 _FORMAT_BOLD = '\x1b[1m%s\x1b[0m'
 _FORMAT_CYAN = '\x1b[36m%s\x1b[0m'
 
-def _format_size(size, diff=None, color=False):
+def _format_size(size, color):
+    text = __format_size(size)
+    if color:
+        text = _FORMAT_YELLOW % text
+    return text
+
+def _format_size_diff(size, diff, color):
     text = __format_size(size)
     if diff is not None:
         if color:
@@ -97,7 +103,7 @@ get_process_memory.psutil_process = None
 class _TopTrace:
     __slots__ = ('size', 'size_diff', 'count', 'count_diff')
 
-    def __init__(self, size=0, size_diff=None, count=0, count_diff=None):
+    def __init__(self, size=0, size_diff=0, count=0, count_diff=0):
         self.size = size
         self.size_diff = size_diff
         self.count = count
@@ -105,18 +111,9 @@ class _TopTrace:
 
     def add(self, trace):
         self.size += trace.size
-        if trace.size_diff is not None:
-            if self.size_diff is not None:
-                self.size_diff += trace.size_diff
-            else:
-                self.size_diff = trace.size_diff
-
+        self.size_diff += trace.size_diff
         self.count += trace.count
-        if trace.count_diff is not None:
-            if self.count_diff is not None:
-                self.count_diff += trace.count_diff
-            else:
-                self.count_diff = trace.count_diff
+        self.count_diff += trace.count_diff
 
     def use_snapshot(self, previous):
         if previous is not None:
@@ -126,14 +123,21 @@ class _TopTrace:
             self.size_diff = self.size
             self.count_diff = self.count
 
-    def format(self, display_top):
+    def format(self, display_top, show_diff):
         if not display_top.show_count and not display_top.show_average:
-            return _format_size(self.size, self.size_diff, display_top.color)
+            if show_diff:
+                return _format_size_diff(self.size, self.size_diff, display_top.color)
+            else:
+                return _format_size(self.size, display_top.color)
 
         parts = []
         if (display_top.show_size
         and (self.size or self.size_diff or not display_top.show_count)):
-            parts.append("size=%s" % _format_size(self.size, self.size_diff, display_top.color))
+            if show_diff:
+                text = _format_size_diff(self.size, self.size_diff, display_top.color)
+            else:
+                text = _format_size(self.size, display_top.color)
+            parts.append("size=%s" % text)
         if display_top.show_count and (self.count or self.count_diff):
             text = "count=%s" % self.count
             if self.count_diff is not None:
@@ -141,7 +145,7 @@ class _TopTrace:
             parts.append(text)
         if (display_top.show_average
         and self.count > 1):
-            parts.append('average=%s' % _format_size(self.size // self.count))
+            parts.append('average=%s' % _format_size(self.size // self.count, False))
         return ', '.join(parts)
 
 
@@ -229,8 +233,6 @@ class _Top:
             self.process_memory = _TopTrace(size)
 
 
-
-
 class DisplayTop:
     def __init__(self, top_count, file=None):
         self.top_count = top_count
@@ -257,9 +259,10 @@ class DisplayTop:
     def _display(self, top):
         log = self.stream.write
         snapshot = self._snapshot
+        has_snapshot = (snapshot is not None)
 
         stats = top.top_stats
-        if snapshot is not None:
+        if has_snapshot:
             stats.sort(key=_sort_by_size_diff, reverse=True)
         else:
             stats.sort(key=_sort_by_size, reverse=True)
@@ -272,7 +275,7 @@ class DisplayTop:
         text = "Top %s allocations per %s" % (count, text)
         if self.color:
             text = _FORMAT_CYAN % text
-        if snapshot is not None:
+        if has_snapshot:
             text += ' (compared to %s)' % snapshot.name
         name = top.name
         if self.color:
@@ -287,7 +290,7 @@ class DisplayTop:
                 filename = self.cleanup_filename(filename)
                 if lineno is not None:
                     filename = "%s:%s" % (filename, lineno)
-                text = trace.format(self)
+                text = trace.format(self, has_snapshot)
                 if self.color:
                     path, basename = os.path.split(filename)
                     if path:
@@ -300,25 +303,25 @@ class DisplayTop:
 
         nother = len(stats) - self.top_count
         if nother > 0:
-            text = other.format(self)
+            text = other.format(self, has_snapshot)
             log("%s more: %s\n" % (nother, text))
 
-        text = total.format(self)
+        text = total.format(self, has_snapshot)
         log("Total Python memory: %s\n" % text)
 
         if top.process_memory:
-            if snapshot is not None:
+            if has_snapshot:
                 top.process_memory.use_snapshot(snapshot.process_memory)
-            text = top.process_memory.format(self)
+            text = top.process_memory.format(self, has_snapshot)
             ignore = (" (ignore tracemalloc: %s)"
-                          % _format_size(top.tracemalloc_size))
+                          % _format_size(top.tracemalloc_size, False))
             if self.color:
                 ignore = _FORMAT_CYAN % ignore
             text += ignore
             log("Total process memory: %s\n" % text)
         else:
             text = ("Ignore tracemalloc: %s"
-                    % _format_size(top.tracemalloc_size))
+                    % _format_size(top.tracemalloc_size, False))
             if self.color:
                 text = _FORMAT_CYAN % text
             log(text + "\n")
@@ -556,5 +559,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if 0:
+        import cProfile
+        cProfile.run('main()', sort='tottime')
+    else:
+        main()
 
