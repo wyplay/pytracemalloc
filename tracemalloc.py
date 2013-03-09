@@ -14,15 +14,8 @@ else:
     def _iteritems(obj):
         return obj.iteritems()
 
-def _sort_by_size(item):
-    trace = item[2]
-    # (size, count)
-    return (trace[0], trace[2])
-
-def _sort_by_size_diff(item):
-    trace = item[2]
-    # (size_diff, size, count_diff, count)
-    return (trace[1], trace[0], trace[3], trace[2])
+def _sort_key(item):
+    return item[2]
 
 def _get_timestamp():
     return str(datetime.datetime.now()).split(".")[0]
@@ -152,9 +145,9 @@ class _Top:
                     size, count = item
                     if snapshot is not None:
                         previous = snapshot.pop(key, _TRACE_ZERO)
-                        trace = (size, size - previous[0], count, count - previous[2])
+                        trace = (size - previous[0], size, count - previous[2], count)
                     else:
-                        trace = (size, 0, count, 0)
+                        trace = (0, size, 0, count)
                     if lineno is None:
                         lineno = "?"
                     stats.append((filename, lineno, trace))
@@ -162,27 +155,25 @@ class _Top:
                         new_snapshot[key] = trace
             else:
                 key = (filename, None)
-                trace = [0, 0, 0, 0]
+                size = count = 0
                 for lineno, item in _iteritems(line_dict):
-                    trace[0] += item[0]
-                    trace[2] += item[1]
+                    size += item[0]
+                    count += item[1]
                 if snapshot is not None:
                     previous = snapshot.pop(key, _TRACE_ZERO)
-                    trace[1] = trace[0] - previous[0]
-                    trace[3] = trace[2] - previous[2]
-                trace = tuple(trace)
+                    trace = (
+                        size - previous[1], size,
+                        count - previous[3], count)
+                else:
+                    trace = (0, size, 0, count)
                 stats.append((filename, None, trace))
                 if want_snapshot:
                     new_snapshot[key] = trace
 
         if snapshot is not None:
             for key, trace in _iteritems(snapshot):
-                if display_top.show_lineno:
-                    filename, lineno = key
-                else:
-                    filename, lineno = key
-                trace = [0, -trace[0], 0, -trace[2]]
-                stats.append((filename, lineno, trace))
+                trace = [-trace[1], 0, -trace[3], 0]
+                stats.append((key[0], key[1], trace))
 
         self.top_stats = stats
         self.snapshot_stats = new_snapshot
@@ -217,26 +208,26 @@ class DisplayTop:
     def _format_trace(self, trace, show_diff):
         if not self.show_count and not self.show_average:
             if show_diff:
-                return _format_size_diff(trace[0], trace[1], self.color)
+                return _format_size_diff(trace[1], trace[0], self.color)
             else:
-                return _format_size(trace[0], self.color)
+                return _format_size(trace[1], self.color)
 
         parts = []
         if (self.show_size
-        and (trace[0] or trace[1] or not self.show_count)):
+        and (trace[1] or trace[0] or not self.show_count)):
             if show_diff:
-                text = _format_size_diff(trace[0], trace[1], self.color)
+                text = _format_size_diff(trace[1], trace[0], self.color)
             else:
-                text = _format_size(trace[0], self.color)
+                text = _format_size(trace[1], self.color)
             parts.append("size=%s" % text)
-        if self.show_count and (trace[2] or trace[3]):
-            text = "count=%s" % trace[2]
-            if trace[3] is not None:
-                text += " (%+i)" % trace[3]
+        if self.show_count and (trace[3] or trace[2]):
+            text = "count=%s" % trace[3]
+            if trace[2] is not None:
+                text += " (%+i)" % trace[2]
             parts.append(text)
         if (self.show_average
-        and trace[2] > 1):
-            parts.append('average=%s' % _format_size(trace[0] // trace[2], False))
+        and trace[3] > 1):
+            parts.append('average=%s' % _format_size(trace[1] // trace[3], False))
         return ', '.join(parts)
 
     def _display(self, top):
@@ -245,10 +236,7 @@ class DisplayTop:
         has_snapshot = (snapshot is not None)
 
         stats = top.top_stats
-        if has_snapshot:
-            stats.sort(key=_sort_by_size_diff, reverse=True)
-        else:
-            stats.sort(key=_sort_by_size, reverse=True)
+        stats.sort(key=_sort_key, reverse=True)
 
         count = min(self.top_count, len(stats))
         if self.show_lineno:
@@ -302,9 +290,9 @@ class DisplayTop:
         log("Total Python memory: %s\n" % text)
 
         if top.process_memory:
-            trace = [top.process_memory, 0, 0, 0]
+            trace = [0, top.process_memory, 0, 0]
             if has_snapshot:
-                trace[1] = trace[0] - snapshot.process_memory
+                trace[0] = trace[1] - snapshot.process_memory
             text = self._format_trace(trace, has_snapshot)
             ignore = (" (ignore tracemalloc: %s)"
                           % _format_size(top.tracemalloc_size, False))
