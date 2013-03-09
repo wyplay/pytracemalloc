@@ -520,8 +520,6 @@ PyDoc_STRVAR(trace_disable_doc,
 static PyObject*
 py_trace_disable(PyObject *self)
 {
-    printf("py_trace_disable\n");
-
     trace_timer_stop();
 
     if (trace_config.enabled) {
