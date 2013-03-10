@@ -29,7 +29,7 @@ class TestTracemalloc(unittest.TestCase):
         self.assertEqual(source, obj_source)
 
     def test_get_process_memory(self):
-        obj_size = 12345
+        obj_size = 10 ** 7
         orig = tracemalloc.get_process_memory()
         if orig is None:
             self.skipTest("get_process_memory is not supported")
