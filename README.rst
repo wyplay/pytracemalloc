@@ -163,23 +163,6 @@ get_process_memory()
 
    New in pytracemalloc 0.8.
 
-get_source(obj) -> (filename: str, lineno: int)
-
-   Get the source of an object.
-
-   Return ``(filename, lineno)`` if the source is known,
-   ``None`` otherwise.
-
-get_stats():
-
-   Get statistics on Python memory allocation.
-
-   Return a dict:
-   ``{filename (str): {lineno (int) -> (size (int), count (int))}}``.
-
-   *filename* may be ``"???"`` and *lineno* may be ``None`` if tracemalloc
-   failed to get the source of the memory allocation.
-
 start_timer(delay: int, func: callable, args: tuple=(), kwargs: dict={})
 
    Start a timer calling ``func(*args, **kwargs)`` every *delay* seconds.
@@ -265,6 +248,7 @@ Version 0.8
  - add --color and --no-color command line options
  - --include and --exclude command line options can now be specified multiple
    times
+ - "remove" get_source() and get_stats() functions: they are now private
 
 Version 0.7 (2013-03-04)
 

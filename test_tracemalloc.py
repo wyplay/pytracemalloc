@@ -6,15 +6,16 @@ import unittest
 
 EMPTY_STRING_SIZE = sys.getsizeof(b'')
 
-def get_lineno():
+def get_source(lineno_delta):
+    filename = __file__
     frame = sys._getframe(1)
-    return frame.f_lineno
+    lineno = frame.f_lineno + lineno_delta
+    return filename, lineno
 
 def allocate_bytes(size):
-    filename = __file__
-    lineno = get_lineno() + 1
+    source = get_source(1)
     data = b'x' * (size - EMPTY_STRING_SIZE)
-    return data, (filename, lineno)
+    return data, source
 
 class TestTracemalloc(unittest.TestCase):
     def setUp(self):
@@ -23,10 +24,11 @@ class TestTracemalloc(unittest.TestCase):
     def tearDown(self):
         tracemalloc.disable()
 
-    def test_get_source(self):
-        obj, obj_source = allocate_bytes(12345)
-        source = tracemalloc.get_source(obj)
-        self.assertEqual(source, obj_source)
+    def test_get_trace(self):
+        size = 12345
+        obj, obj_source = allocate_bytes(size)
+        trace = tracemalloc._get_object_trace(obj)
+        self.assertEqual(trace, (size,) + obj_source)
 
     def test_get_process_memory(self):
         obj_size = 10 ** 7
@@ -48,7 +50,7 @@ class TestTracemalloc(unittest.TestCase):
             total += size
             count += 1
 
-            stats = tracemalloc.get_stats()
+            stats = tracemalloc._get_stats()
             filename, lineno = source
             self.assertEqual(stats[filename][lineno], (total, count))
 

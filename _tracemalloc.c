@@ -647,7 +647,7 @@ trace_lineno_as_obj(int lineno)
 }
 
 PyDoc_STRVAR(trace_get_stats_doc,
-    "get_stats() -> dict\n"
+    "_get_stats() -> dict\n"
     "\n"
     "Get allocation statistics per Python file as a dict:\n"
     "{filename (str): {lineno (int) -> (size (int), count (int))}}");
@@ -774,19 +774,19 @@ done:
     return get_stats.file_dict;
 }
 
-PyDoc_STRVAR(trace_get_source_doc,
-    "get_source(obj) -> (filename: str, lineno: int)\n"
+PyDoc_STRVAR(trace_get_object_trace_doc,
+    "_get_object_trace(obj) -> (filename: str, lineno: int)\n"
     "\n"
     "Get the source of an object.\n"
     "Return (filename, lineno) if the source is known,\n"
     "None otherwise.");
 
 static PyObject*
-py_trace_get_source(PyObject *self, PyObject *obj)
+py_trace_get_object_trace(PyObject *self, PyObject *obj)
 {
     trace_alloc_t *trace;
     void *ptr;
-    PyObject *filename, *lineno;
+    PyObject *size = NULL, *filename = NULL, *lineno = NULL;
 
     ptr = (void *)obj;
     trace = g_hash_table_lookup(trace_allocs, ptr);
@@ -795,16 +795,25 @@ py_trace_get_source(PyObject *self, PyObject *obj)
         return Py_None;
     }
 
+    size = PYINT_FROM_SSIZE_T(trace->size);
+    if (size == NULL)
+        goto error;
+
     filename = trace_decode_filename(trace->filename);
     if (filename == NULL)
-        return NULL;
+        goto error;
 
     lineno = trace_lineno_as_obj(trace->lineno);
-    if (lineno == NULL) {
-        Py_DECREF(filename);
-        return NULL;
-    }
-    return Py_BuildValue("(NN)", filename, lineno);
+    if (lineno == NULL)
+        goto error;
+
+    return Py_BuildValue("(NNN)", size, filename, lineno);
+
+error:
+    Py_XDECREF(size);
+    Py_XDECREF(filename);
+    Py_XDECREF(lineno);
+    return NULL;
 }
 
 static int
@@ -853,8 +862,8 @@ done:
 static PyMethodDef trace_methods[] = {
     {"enable", (PyCFunction)py_trace_enable, METH_NOARGS, trace_enable_doc},
     {"disable", (PyCFunction)py_trace_disable, METH_NOARGS, trace_disable_doc},
-    {"get_source", (PyCFunction)py_trace_get_source, METH_O, trace_get_source_doc},
-    {"get_stats", (PyCFunction)py_trace_get_stats, METH_NOARGS, trace_get_stats_doc},
+    {"_get_object_trace", (PyCFunction)py_trace_get_object_trace, METH_O, trace_get_object_trace_doc},
+    {"_get_stats", (PyCFunction)py_trace_get_stats, METH_NOARGS, trace_get_stats_doc},
     {"start_timer", py_trace_start_timer, METH_VARARGS, trace_start_timer_doc},
     {"stop_timer", (PyCFunction)py_trace_stop_timer, METH_NOARGS, trace_stop_timer_doc},
     {NULL,              NULL}           /* sentinel */

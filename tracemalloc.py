@@ -5,7 +5,7 @@ import sys
 pickle = None
 
 from _tracemalloc import *
-from _tracemalloc import __version__
+from _tracemalloc import __version__, _get_stats, _get_object_trace
 
 if sys.version_info >= (3,):
     def _iteritems(obj):
@@ -324,7 +324,7 @@ class DisplayTop:
 
     def display(self):
         name = _get_timestamp()
-        raw_stats = get_stats()
+        raw_stats = _get_stats()
         process_memory = get_process_memory()
         top = _Top(name, raw_stats, process_memory)
         self._run(top)
@@ -359,7 +359,7 @@ class Snapshot:
     @classmethod
     def create(cls):
         timestamp = _get_timestamp()
-        stats = get_stats()
+        stats = _get_stats()
         pid = os.getpid()
         process_memory = get_process_memory()
         return cls(stats, timestamp, pid, process_memory)
