@@ -775,10 +775,10 @@ done:
 }
 
 PyDoc_STRVAR(trace_get_object_trace_doc,
-    "_get_object_trace(obj) -> (filename: str, lineno: int)\n"
+    "_get_object_trace(obj) -> (size: int, filename: str, lineno: int)\n"
     "\n"
-    "Get the source of an object.\n"
-    "Return (filename, lineno) if the source is known,\n"
+    "Get the memory allocation trace of an object.\n"
+    "Return (size, filename, lineno) if the source is known,\n"
     "None otherwise.");
 
 static PyObject*

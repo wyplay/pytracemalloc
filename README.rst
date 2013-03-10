@@ -243,12 +243,13 @@ Version 0.8
 
  - add get_process_memory() function
  - the top does also display the memory usage of the whole process
+ - top uses colors by default
  - automatically disable tracemalloc at exit
  - display the name of the previous snapshot when comparing snapshots
  - add --color and --no-color command line options
  - --include and --exclude command line options can now be specified multiple
    times
- - "remove" get_source() and get_stats() functions: they are now private
+ - remove get_source() and get_stats() functions: they are now private
 
 Version 0.7 (2013-03-04)
 
