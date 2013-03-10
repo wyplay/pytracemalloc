@@ -99,6 +99,8 @@ get_process_memory.psutil_process = None
 _TRACE_ZERO = (0, 0, 0, 0)
 
 class _TopSnapshot:
+    __slots__ = ('name', 'stats', 'process_memory')
+
     def __init__(self, top):
         self.name = top.name
         self.stats = top.snapshot_stats
