@@ -403,6 +403,9 @@ class Snapshot:
 
     def filter_filenames(self, patterns, include):
         import fnmatch
+        if isinstance(patterns, str):
+            # backward compatibility with pytracemalloc 0.7
+            patterns = (patterns,)
         new_stats = {}
         for filename, file_stats in _iteritems(self.stats):
             if include:

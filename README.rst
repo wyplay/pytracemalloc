@@ -209,10 +209,11 @@ Classes
    Methods:
 
    - create(): take a snapshot
-   - filter_filenames(pattern, include): remove filenames not matching pattern
-     if include is True, or remove filenames matching pattern if include is
-     False (exclude). See fnmatch.fnmatch() for the syntax of patterns.
-   - write(filename): write a snapshot into a file
+   - filter_filenames(patterns: str|list, include: bool): remove filenames not
+     matching any pattern if include is True, or remove filenames matching a
+     pattern if include is False (exclude). See fnmatch.fnmatch() for the
+     syntax of patterns.
+   - write(filename): write the snapshot into a file
 
    Attributes:
 
@@ -241,14 +242,13 @@ Changelog
 
 Version 0.8
 
+ - the top uses colors and displays also the memory usage of the process
  - add get_process_memory() function
- - the top does also display the memory usage of the whole process
- - top uses colors by default
- - automatically disable tracemalloc at exit
  - display the name of the previous snapshot when comparing snapshots
  - add --color and --no-color command line options
  - --include and --exclude command line options can now be specified multiple
    times
+ - automatically disable tracemalloc at exit
  - remove get_source() and get_stats() functions: they are now private
 
 Version 0.7 (2013-03-04)
