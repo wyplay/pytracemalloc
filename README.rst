@@ -184,6 +184,17 @@ stop_timer()
 Classes
 -------
 
+ * DisplayUncollectable: Display uncollectable objects.
+   Methods:
+
+   - display(): display uncollectable objects
+
+   Attributes:
+
+   - cumulative (bool, default: False): if True, display() displays all
+     uncollectable objects, if False, display() only displays new uncollectable
+     objects.
+
  * DisplayTop(count: int): Displaying to top N of the biggest allocation.
    Methods:
 

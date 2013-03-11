@@ -1,7 +1,9 @@
 from __future__ import with_statement
 import datetime
+import gc
 import os
 import sys
+import types
 pickle = None
 
 from _tracemalloc import *
@@ -542,6 +544,69 @@ def main():
         snapshot.display(top, show_pid=show_pid)
 
     print("%s snapshots" % len(snapshots))
+
+
+class _GetUncollectable:
+    def __init__(self):
+        enable()
+        gc.set_debug(gc.DEBUG_SAVEALL)
+        self.seen = set()
+        gc.collect()
+        garbage = tuple(gc.garbage)
+        for obj in garbage:
+            obj_id = id(obj)
+            if obj_id in self.seen:
+                continue
+            self.seen.add(obj_id)
+
+    def get_new_objects(self):
+        gc.collect()
+        garbage = tuple(gc.garbage)
+        objects = []
+        for obj in garbage:
+            obj_id = id(obj)
+            if obj_id in self.seen:
+                continue
+            self.seen.add(obj_id)
+
+            source = _get_object_trace(obj)
+            objects.append((obj, source))
+        return objects
+
+
+class DisplayUncollectable:
+    def __init__(self, file=None):
+        if file is not None:
+            self.stream = file
+        else:
+            self.stream = sys.stdout
+        self.cumulative = False
+        self._getter = _GetUncollectable()
+        self._objects = []
+
+    def display(self):
+        objects = self._getter.get_new_objects()
+        if self.cumulative:
+            self._objects.extend(objects)
+            objects = self._objects
+        for obj, source in objects:
+            if isinstance(obj, types.InstanceType):
+                obj_repr = '%s instance' % obj.__class__.__name__
+            else:
+                obj_repr = type(obj).__name__
+            obj_repr = "[id %x] %s" % (id(obj), obj_repr)
+            if source is not None:
+                size, filename, lineno = source
+                if lineno is None:
+                    lineno = "?"
+                size = _format_size(size, None)
+            else:
+                filename = "???"
+                lineno = "?"
+                size = "?"
+            text = "%s:%s: %s (%s)" % (filename, lineno, obj_repr, size)
+            self.stream.write(text + "\n")
+        self.stream.flush()
 
 
 if __name__ == "__main__":
