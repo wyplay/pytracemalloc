@@ -180,7 +180,6 @@ trace_timer_check(void)
 static void
 trace_log_alloc(void *ptr, trace_alloc_t *trace)
 {
-    g_hash_table_insert(trace_allocs, ptr, trace);
     trace_config.enabled = 0;
     trace->filename = trace_get_filename(&trace->lineno);
     trace_config.enabled = 1;
@@ -195,6 +194,8 @@ trace_log_alloc(void *ptr, trace_alloc_t *trace)
     else {
         trace->filename = "???";
     }
+
+    g_hash_table_insert(trace_allocs, ptr, trace);
 
     trace_update_stats(1, trace);
 
@@ -280,6 +281,47 @@ trace_free(trace_free_t func, void *ptr)
 
     func(ptr);
 
+    trace = g_hash_table_lookup(trace_allocs, ptr);
+    if (trace != NULL)
+        trace_log_dealloc(ptr, trace);
+}
+
+static void
+trace_free_list_alloc(PyObject *op)
+{
+    void *ptr;
+    PyTypeObject *type;
+    size_t size;
+    trace_alloc_t *trace;
+
+    if (!trace_config.enabled)
+        return;
+
+    trace = trace_alloc_trace();
+    if (trace == NULL)
+        return;
+
+    type = Py_TYPE(op);
+    if (PyType_IS_GC(type))
+        ptr = (void *)((char *)op - sizeof(PyGC_Head));
+    else
+        ptr = (void *)op;
+    size = type->tp_basicsize;
+
+    trace->size = size;
+    trace_log_alloc(ptr, trace);
+}
+
+static void
+trace_free_list_free(PyObject *op)
+{
+    trace_alloc_t *trace;
+    void *ptr;
+
+    if (!trace_config.enabled)
+        return;
+
+    ptr = (void *)op;
     trace = g_hash_table_lookup(trace_allocs, ptr);
     if (trace != NULL)
         trace_log_dealloc(ptr, trace);
@@ -456,6 +498,10 @@ trace_register_allocators(void)
                          trace_object_malloc,
                          trace_object_realloc,
                          trace_object_free) < 0)
+        return -1;
+
+    if (_PyFreeList_SetAllocators(trace_free_list_alloc,
+                                  trace_free_list_free) < 0)
         return -1;
 
     return 0;
