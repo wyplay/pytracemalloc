@@ -1,6 +1,6 @@
 diff -r fb57d3630ed9 Include/objimpl.h
 --- a/Include/objimpl.h	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Include/objimpl.h	Mon Mar 11 11:47:52 2013 +0100
++++ b/Include/objimpl.h	Mon Mar 11 11:56:17 2013 +0100
 @@ -100,36 +100,21 @@ PyAPI_FUNC(void) PyObject_Free(void *);
  
  
@@ -47,7 +47,7 @@ diff -r fb57d3630ed9 Include/objimpl.h
  #define _PyObject_Del		PyObject_Free
 diff -r fb57d3630ed9 Include/pymem.h
 --- a/Include/pymem.h	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Include/pymem.h	Mon Mar 11 11:47:52 2013 +0100
++++ b/Include/pymem.h	Mon Mar 11 11:56:17 2013 +0100
 @@ -47,6 +47,24 @@ extern "C" {
     performed on failure (no exception is set, no warning is printed, etc).
  */
@@ -102,7 +102,7 @@ diff -r fb57d3630ed9 Include/pymem.h
   * Type-oriented memory interface
 diff -r fb57d3630ed9 Include/sysmodule.h
 --- a/Include/sysmodule.h	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Include/sysmodule.h	Mon Mar 11 11:47:52 2013 +0100
++++ b/Include/sysmodule.h	Mon Mar 11 11:56:17 2013 +0100
 @@ -24,6 +24,8 @@ PyAPI_DATA(int) _PySys_CheckInterval;
  PyAPI_FUNC(void) PySys_ResetWarnOptions(void);
  PyAPI_FUNC(void) PySys_AddWarnOption(char *);
@@ -114,7 +114,7 @@ diff -r fb57d3630ed9 Include/sysmodule.h
  #endif
 diff -r fb57d3630ed9 Objects/classobject.c
 --- a/Objects/classobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/classobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/classobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -2181,7 +2181,10 @@ PyMethod_New(PyObject *func, PyObject *s
  		PyErr_BadInternalCall();
  		return NULL;
@@ -145,7 +145,7 @@ diff -r fb57d3630ed9 Objects/classobject.c
  static int
 diff -r fb57d3630ed9 Objects/floatobject.c
 --- a/Objects/floatobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/floatobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/floatobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -50,14 +50,21 @@ PyObject *
  PyFloat_FromDouble(double fval)
  {
@@ -174,18 +174,25 @@ diff -r fb57d3630ed9 Objects/floatobject.c
  	op->ob_fval = fval;
  	return (PyObject *) op;
  }
-@@ -174,7 +181,7 @@ PyFloat_FromString(PyObject *v, char **p
- static void
+@@ -175,8 +182,13 @@ static void
  float_dealloc(PyFloatObject *op)
  {
--	if (PyFloat_CheckExact(op)) {
-+	if (_PySys_UseFreeList && PyFloat_CheckExact(op)) {
- 		op->ob_type = (struct _typeobject *)free_list;
- 		free_list = op;
+ 	if (PyFloat_CheckExact(op)) {
+-		op->ob_type = (struct _typeobject *)free_list;
+-		free_list = op;
++		if (_PySys_UseFreeList) {
++			op->ob_type = (struct _typeobject *)free_list;
++			free_list = op;
++		}
++		else {
++			PyObject_Del(op);
++		}
  	}
+ 	else
+ 		op->ob_type->tp_free((PyObject *)op);
 diff -r fb57d3630ed9 Objects/frameobject.c
 --- a/Objects/frameobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/frameobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/frameobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -433,7 +433,7 @@ frame_dealloc(PyFrameObject *f)
          co = f->f_code;
          if (co->co_zombieframe == NULL)
@@ -210,7 +217,7 @@ diff -r fb57d3630ed9 Objects/frameobject.c
                      if (f == NULL) {
 diff -r fb57d3630ed9 Objects/intobject.c
 --- a/Objects/intobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/intobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/intobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -96,14 +96,21 @@ PyInt_FromLong(long ival)
  		return (PyObject *) v;
  	}
@@ -292,7 +299,7 @@ diff -r fb57d3630ed9 Objects/intobject.c
  	}
 diff -r fb57d3630ed9 Objects/listobject.c
 --- a/Objects/listobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/listobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/listobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -105,7 +105,7 @@ PyList_New(Py_ssize_t size)
  	 *  which can cause compiler to optimise out */
  	if (size > PY_SIZE_MAX / sizeof(PyObject *))
@@ -313,7 +320,7 @@ diff -r fb57d3630ed9 Objects/listobject.c
  		op->ob_type->tp_free((PyObject *)op);
 diff -r fb57d3630ed9 Objects/methodobject.c
 --- a/Objects/methodobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/methodobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/methodobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -10,7 +10,10 @@ PyObject *
  PyCFunction_NewEx(PyMethodDef *ml, PyObject *self, PyObject *module)
  {
@@ -344,7 +351,7 @@ diff -r fb57d3630ed9 Objects/methodobject.c
  static PyObject *
 diff -r fb57d3630ed9 Objects/object.c
 --- a/Objects/object.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/object.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/object.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -2002,27 +2002,6 @@ PyTypeObject *_Py_cobject_hack = &PyCObj
  Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
  
@@ -375,7 +382,7 @@ diff -r fb57d3630ed9 Objects/object.c
     e.g. builtin dictionaries and lists, should used Py_ReprEnter() and
 diff -r fb57d3630ed9 Objects/obmalloc.c
 --- a/Objects/obmalloc.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/obmalloc.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/obmalloc.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -1,5 +1,187 @@
  #include "Python.h"
  
@@ -672,7 +679,7 @@ diff -r fb57d3630ed9 Objects/obmalloc.c
  		}
  		return bp;
  	}
-@@ -1168,41 +1350,42 @@ PyObject_Realloc(void *p, size_t nbytes)
+@@ -1168,41 +1350,40 @@ PyObject_Realloc(void *p, size_t nbytes)
  	 * at p.  Instead we punt:  let C continue to manage this block.
           */
  	if (nbytes)
@@ -727,12 +734,10 @@ diff -r fb57d3630ed9 Objects/obmalloc.c
 +	return _PyMem_Allocators.object_realloc(p, nbytes);
 +}
 +
-+
-+
  
  #ifdef PYMALLOC_DEBUG
  /*==========================================================================*/
-@@ -1324,7 +1507,7 @@ void *
+@@ -1324,7 +1505,7 @@ void *
  		/* overflow:  can't represent total as a size_t */
  		return NULL;
  
@@ -741,7 +746,7 @@ diff -r fb57d3630ed9 Objects/obmalloc.c
  	if (p == NULL)
  		return NULL;
  
-@@ -1358,7 +1541,7 @@ void
+@@ -1358,7 +1539,7 @@ void
  	nbytes = read_size_t(q);
  	if (nbytes > 0)
  		memset(q, DEADBYTE, nbytes);
@@ -750,7 +755,7 @@ diff -r fb57d3630ed9 Objects/obmalloc.c
  }
  
  void *
-@@ -1387,7 +1570,7 @@ void *
+@@ -1387,7 +1568,7 @@ void *
  	}
  
  	/* Resize and add decorations. */
@@ -761,7 +766,7 @@ diff -r fb57d3630ed9 Objects/obmalloc.c
  
 diff -r fb57d3630ed9 Objects/setobject.c
 --- a/Objects/setobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/setobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/setobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -558,7 +558,7 @@ set_dealloc(PySetObject *so)
  	}
  	if (so->table != so->smalltable)
@@ -783,7 +788,7 @@ diff -r fb57d3630ed9 Objects/setobject.c
  		assert (so != NULL && PyAnySet_CheckExact(so));
 diff -r fb57d3630ed9 Objects/tupleobject.c
 --- a/Objects/tupleobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/tupleobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/tupleobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -33,7 +33,7 @@ PyTuple_New(register Py_ssize_t size)
  		return NULL;
  	}
@@ -823,7 +828,7 @@ diff -r fb57d3630ed9 Objects/tupleobject.c
  		{
 diff -r fb57d3630ed9 Objects/unicodeobject.c
 --- a/Objects/unicodeobject.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Objects/unicodeobject.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Objects/unicodeobject.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -240,7 +240,7 @@ PyUnicodeObject *_PyUnicode_New(Py_ssize
      }
  
@@ -845,7 +850,7 @@ diff -r fb57d3630ed9 Objects/unicodeobject.c
  	if (unicode->length >= KEEPALIVE_SIZE_LIMIT) {
 diff -r fb57d3630ed9 Python/pythonrun.c
 --- a/Python/pythonrun.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Python/pythonrun.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Python/pythonrun.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -148,6 +148,36 @@ add_flag(int flag, const char *envs)
  	return flag;
  }
@@ -895,7 +900,7 @@ diff -r fb57d3630ed9 Python/pythonrun.c
  		initsite(); /* Module site */
 diff -r fb57d3630ed9 Python/sysmodule.c
 --- a/Python/sysmodule.c	Mon Mar 11 11:46:38 2013 +0100
-+++ b/Python/sysmodule.c	Mon Mar 11 11:47:52 2013 +0100
++++ b/Python/sysmodule.c	Mon Mar 11 11:56:17 2013 +0100
 @@ -45,6 +45,8 @@ extern const char *PyWin_DLLVersionStrin
  #include <langinfo.h>
  #endif
@@ -905,16 +910,3 @@ diff -r fb57d3630ed9 Python/sysmodule.c
  PyObject *
  PySys_GetObject(char *name)
  {
-diff -r fb57d3630ed9 setup.py
---- a/setup.py	Mon Mar 11 11:46:38 2013 +0100
-+++ b/setup.py	Mon Mar 11 11:47:52 2013 +0100
-@@ -806,7 +806,8 @@ class PyBuildExt(build_ext):
-             ]
-             sqlite_libfile = self.compiler.find_library_file(
-                                 sqlite_dirs_to_check + lib_dirs, 'sqlite3')
--            sqlite_libdir = [os.path.abspath(os.path.dirname(sqlite_libfile))]
-+            if sqlite_libfile:
-+                sqlite_libdir = [os.path.abspath(os.path.dirname(sqlite_libfile))]
- 
-         if sqlite_incdir and sqlite_libdir:
-             sqlite_srcs = ['_sqlite/cache.c',
