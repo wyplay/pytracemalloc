@@ -106,16 +106,19 @@ class _TopSnapshot:
         self.name = top.name
         self.stats = top.snapshot_stats
         self.process_memory = top.process_memory
+        self.user_data = top.user_data
+
 
 class _Top:
     __slots__ = (
-        'name', 'raw_stats', 'real_process_memory',
+        'name', 'raw_stats', 'real_process_memory', 'user_data',
         'top_stats', 'snapshot_stats', 'tracemalloc_size', 'process_memory')
 
-    def __init__(self, name, raw_stats, real_process_memory):
+    def __init__(self, name, raw_stats, real_process_memory, user_data):
         self.name = name
         self.raw_stats = raw_stats
         self.real_process_memory = real_process_memory
+        self.user_data = user_data
 
         self.top_stats = None
         self.snapshot_stats = None
@@ -201,6 +204,7 @@ class DisplayTop:
             self.stream = sys.stdout
         self.compare_with_previous = True
         self.color = self.stream.isatty()
+        self.user_data_callback = None
 
     def cleanup_filename(self, filename):
         parts = filename.split(os.path.sep)
@@ -310,6 +314,18 @@ class DisplayTop:
                 text = _FORMAT_CYAN % text
             log(text + "\n")
 
+        if top.user_data:
+            for index, item in enumerate(top.user_data):
+                title, format, value = item
+                if format == 'size':
+                    trace = [0, value, 0, 0]
+                    if has_snapshot:
+                        trace[0] = trace[1] - snapshot.user_data[index][2]
+                    text = self._format_trace(trace, has_snapshot)
+                else:
+                    text = str(value)
+                log("%s: %s\n" % (title, text))
+
         log("\n")
         self.stream.flush()
 
@@ -324,11 +340,8 @@ class DisplayTop:
             self._snapshot = _TopSnapshot(top)
 
     def display(self):
-        name = _get_timestamp()
-        raw_stats = _get_stats()
-        process_memory = get_process_memory()
-        top = _Top(name, raw_stats, process_memory)
-        self._run(top)
+        snapshot = Snapshot.create(self.user_data_callback)
+        snapshot.display(self)
 
     def start(self, delay):
         start_timer(int(delay), self.display)
@@ -351,19 +364,24 @@ def _lazy_import_pickle():
 class Snapshot:
     FORMAT_VERSION = 1
 
-    def __init__(self, stats, timestamp, pid, process_memory):
+    def __init__(self, stats, timestamp, pid, process_memory, user_data):
         self.stats = stats
         self.timestamp = timestamp
         self.pid = pid
         self.process_memory = process_memory
+        self.user_data = user_data
 
     @classmethod
-    def create(cls):
+    def create(cls, user_data_callback=None):
         timestamp = _get_timestamp()
         stats = _get_stats()
         pid = os.getpid()
         process_memory = get_process_memory()
-        return cls(stats, timestamp, pid, process_memory)
+        if user_data_callback is not None:
+            user_data = user_data_callback()
+        else:
+            user_data = None
+        return cls(stats, timestamp, pid, process_memory, user_data)
 
     @classmethod
     def load(cls, filename):
@@ -384,10 +402,11 @@ class Snapshot:
             timestamp = data['timestamp']
             pid = data['pid']
             process_memory = data.get('process_memory')
+            user_data = data.get('user_data')
         except KeyError:
             raise TypeError("invalid file format")
 
-        return cls(stats, timestamp, pid, process_memory)
+        return cls(stats, timestamp, pid, process_memory, user_data)
 
     def write(self, filename):
         pickle = _lazy_import_pickle()
@@ -396,8 +415,11 @@ class Snapshot:
             'timestamp': self.timestamp,
             'stats': self.stats,
             'pid': self.pid,
-            'process_memory': self.process_memory,
         }
+        if self.process_memory is not None:
+            data['process_memory'] = self.process_memory
+        if self.user_data is not None:
+            data['user_data'] = self.user_data
 
         with open(filename, "wb") as fp:
             pickle.dump(data, fp, pickle.HIGHEST_PROTOCOL)
@@ -426,7 +448,7 @@ class Snapshot:
         name = self.timestamp
         if show_pid:
             name += ' [pid %s]' % self.pid
-        top = _Top(name, self.stats, self.process_memory)
+        top = _Top(name, self.stats, self.process_memory, self.user_data)
         display_top._run(top)
 
 
@@ -434,9 +456,10 @@ class TakeSnapshot:
     def __init__(self):
         self.filename_template = "tracemalloc-$counter.pickle"
         self.counter = 1
+        self.user_data_callback = None
 
     def take_snapshot(self):
-        snapshot = Snapshot.create()
+        snapshot = Snapshot.create(self.user_data_callback)
 
         filename = self.filename_template
         filename = filename.replace("$pid", str(snapshot.pid))

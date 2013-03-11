@@ -214,12 +214,19 @@ Classes
    - show_lineno (bool, default: False): if True, use also the line number,
      not only the filename
    - show_size (bool, default: True): if True, show the size of allocations
+   - user_data_callback (callable, default: None): optional callback collecting
+     user data. See Snapshot.create().
 
  * Snapshot: Snapshot of Python memory allocations. Use TakeSnapshot to
    regulary take snapshots.
    Methods:
 
-   - create(): take a snapshot
+   - create(user_data_callback=None): take a snapshot. If user_data_callback
+     is specified, it must be a callback returning a list of
+     (title: str, format: str, value: int). format must be "size". The list
+     must always have the same size and the same order to be able to compute
+     differences between values.
+     Example: [('Video memory', 'size', 234902)].
    - filter_filenames(patterns: str|list, include: bool): remove filenames not
      matching any pattern if include is True, or remove filenames matching a
      pattern if include is False (exclude). See fnmatch.fnmatch() for the
@@ -246,6 +253,8 @@ Classes
      be used in the template: "$pid" (identifier of the current process),
      "$timestamp" (current date and time) and "$counter" (counter starting at 1
      and incremented at each snapshot).
+   - user_data_callback (callable, default: None): optional callback collecting
+     user data. See Snapshot.create().
 
 
 Python internals
@@ -267,6 +276,9 @@ Version 0.8
  - the top uses colors and displays also the memory usage of the process
  - add DisplayUncollectable class
  - add get_process_memory() function
+ - Support collecting arbitrary user data using a callback: Snapshot.create(),
+   DisplayTop() and TakeSnapshot() have has an optional user_data_callback
+   parameter/attribute
  - display the name of the previous snapshot when comparing snapshots
  - add --color and --no-color command line options
  - --include and --exclude command line options can now be specified multiple
