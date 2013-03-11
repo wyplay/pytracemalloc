@@ -248,6 +248,17 @@ Classes
      and incremented at each snapshot).
 
 
+Python internals
+================
+
+Free lists:
+
+ * int, float, unicode
+ * tuple, list, set, dict
+ * binded method, C function
+ * frame
+
+
 Changelog
 =========
 
