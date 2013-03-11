@@ -1,6 +1,5 @@
 from __future__ import with_statement
 import datetime
-import gc
 import os
 import sys
 import types
@@ -464,10 +463,12 @@ class TakeSnapshot:
 class _GetUncollectable:
     def __init__(self):
         enable()
-        gc.set_debug(gc.DEBUG_SAVEALL)
+        import gc
+        self._gc = gc
+        self._gc.set_debug(self._gc.DEBUG_SAVEALL)
         self.seen = set()
-        gc.collect()
-        garbage = tuple(gc.garbage)
+        self._gc.collect()
+        garbage = tuple(self._gc.garbage)
         for obj in garbage:
             obj_id = id(obj)
             if obj_id in self.seen:
@@ -475,8 +476,8 @@ class _GetUncollectable:
             self.seen.add(obj_id)
 
     def get_new_objects(self):
-        gc.collect()
-        garbage = tuple(gc.garbage)
+        self._gc.collect()
+        garbage = tuple(self._gc.garbage)
         objects = []
         for obj in garbage:
             obj_id = id(obj)
