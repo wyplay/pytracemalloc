@@ -254,6 +254,7 @@ Changelog
 Version 0.8
 
  - the top uses colors and displays also the memory usage of the process
+ - add DisplayUncollectable class
  - add get_process_memory() function
  - display the name of the previous snapshot when comparing snapshots
  - add --color and --no-color command line options
