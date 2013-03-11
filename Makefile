@@ -7,4 +7,5 @@ install: all
 	$(PYTHON) setup.py install
 
 clean:
-	rm -rf build
+	rm -rf build dist
+
