@@ -784,11 +784,16 @@ PyDoc_STRVAR(trace_get_object_trace_doc,
 static PyObject*
 py_trace_get_object_trace(PyObject *self, PyObject *obj)
 {
-    trace_alloc_t *trace;
+    PyTypeObject *type;
     void *ptr;
+    trace_alloc_t *trace;
     PyObject *size = NULL, *filename = NULL, *lineno = NULL;
 
-    ptr = (void *)obj;
+    type = Py_TYPE(obj);
+    if (PyType_IS_GC(type))
+        ptr = (void *)((char *)obj - sizeof(PyGC_Head));
+    else
+        ptr = (void *)obj;
     trace = g_hash_table_lookup(trace_allocs, ptr);
     if (trace == NULL) {
         Py_INCREF(Py_None);
