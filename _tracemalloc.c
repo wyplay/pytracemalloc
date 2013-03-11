@@ -250,12 +250,14 @@ trace_realloc(trace_realloc_t func, void *ptr1, size_t size)
             return func(ptr1, size);
         }
     }
+    else
+        trace1 = NULL;
 
     ptr2 = func(ptr1, size);
     if (ptr2 == NULL)
         return NULL;
 
-    if (ptr1 != NULL)
+    if (trace1 != NULL)
         trace_log_dealloc(ptr1, trace1);
 
     trace2 = trace_alloc_trace();
