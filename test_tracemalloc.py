@@ -4,9 +4,14 @@ import time
 import tracemalloc
 import unittest
 try:
-    from cStringIO import StringIO as BytesIO
+    # Python 2
+    try:
+        from cStringIO import StringIO
+    except ImportError:
+        from StringIO import StringIO
 except ImportError:
-    from StringIO import StringIO as BytesIO
+    # Python 3
+    from io import StringIO
 
 EMPTY_STRING_SIZE = sys.getsizeof(b'')
 THIS_FILE = os.path.basename(__file__)
@@ -108,7 +113,7 @@ class TestTracemalloc(unittest.TestCase):
         self.assertEqual(id(obj), leak_dict_id)
 
     def test_display_uncollectable(self):
-        stream = BytesIO()
+        stream = StringIO()
         display = tracemalloc.DisplayUncollectable(file=stream)
         stream.truncate()
 
@@ -121,13 +126,12 @@ class TestTracemalloc(unittest.TestCase):
         display.display()
         output = stream.getvalue().splitlines()
         self.assertEqual(len(output), 2)
-        self.assertIn('instance', output[0])
-        self.assertIn('dict', output[1])
-        for line in output:
-            self.assertIn(THIS_FILE, line)
+        self.assertIn('UncollectableObject', output[0])
+        self.assertIn(THIS_FILE, output[0])
+        self.assertIn('{', output[1])
 
     def test_display_uncollectable_cumulative(self):
-        stream = BytesIO()
+        stream = StringIO()
         display = tracemalloc.DisplayUncollectable(file=stream)
         display.cumulative = True
 
@@ -137,10 +141,9 @@ class TestTracemalloc(unittest.TestCase):
         display.display()
         output = stream.getvalue().splitlines()
         self.assertEqual(len(output), 2)
-        self.assertIn('instance', output[0])
-        self.assertIn('dict', output[1])
-        for line in output:
-            self.assertIn(THIS_FILE, line)
+        self.assertIn('UncollectableObject', output[0])
+        self.assertIn(THIS_FILE, output[0])
+        self.assertIn('{', output[1])
 
         # Leak 2
         UncollectableObject()
@@ -150,12 +153,12 @@ class TestTracemalloc(unittest.TestCase):
         display.display()
         output = stream.getvalue().splitlines()
         self.assertEqual(len(output), 4)
-        self.assertIn('instance', output[0])
-        self.assertIn('dict', output[1])
-        self.assertIn('instance', output[2])
-        self.assertIn('dict', output[3])
-        for line in output:
-            self.assertIn(THIS_FILE, line)
+        self.assertIn('UncollectableObject', output[0])
+        self.assertIn(THIS_FILE, output[0])
+        self.assertIn('{', output[1])
+        self.assertIn('UncollectableObject', output[2])
+        self.assertIn(THIS_FILE, output[2])
+        self.assertIn('{', output[3])
 
 
 if __name__ == "__main__":
