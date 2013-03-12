@@ -58,6 +58,12 @@ def _format_size_diff(size, diff, color):
             text = _FORMAT_YELLOW % text
     return text
 
+def _colorize_filename(filename):
+    path, basename = os.path.split(filename)
+    if path:
+        path += os.path.sep
+    return _FORMAT_CYAN % path + basename
+
 def get_process_memory():
     if get_process_memory.psutil_process is None:
         try:
@@ -270,10 +276,7 @@ class DisplayTop:
                     filename = "%s:%s" % (filename, lineno)
                 text = self._format_trace(trace, has_snapshot)
                 if self.color:
-                    path, basename = os.path.split(filename)
-                    if path:
-                        path += os.path.sep
-                    filename = _FORMAT_CYAN % path + basename
+                    filename = _colorize_filename(filename)
                 log("#%s: %s: %s\n" % (1 + index, filename, text))
             elif other is None:
                 other = tuple(total)
@@ -522,6 +525,8 @@ class DisplayUncollectable:
         self.cumulative = False
         self._getter = _GetUncollectable()
         self._objects = []
+        self.color = self.stream.isatty()
+        self.format_object = repr
 
     def display(self):
         objects = self._getter.get_new_objects()
@@ -529,21 +534,24 @@ class DisplayUncollectable:
             self._objects.extend(objects)
             objects = self._objects
         for obj, source in objects:
-            if isinstance(obj, types.InstanceType):
-                obj_repr = '%s instance' % obj.__class__.__name__
-            else:
-                obj_repr = type(obj).__name__
+            obj_repr = self.format_object(obj)
+            #if isinstance(obj, types.InstanceType):
+            #    obj_repr = '%s instance' % obj.__class__.__name__
+            #else:
+            #    obj_repr = type(obj).__name__
             obj_repr = "[id %x] %s" % (id(obj), obj_repr)
             if source is not None:
                 size, filename, lineno = source
                 if lineno is None:
                     lineno = "?"
-                size = _format_size(size, None)
+                if self.color:
+                    filename = _colorize_filename(filename)
+                size = _format_size(size, self.color)
             else:
                 filename = "???"
                 lineno = "?"
                 size = "?"
-            text = "%s:%s: %s (%s)" % (filename, lineno, obj_repr, size)
+            text = "UNCOLLECTABLE OBJECT: %s:%s: %s (%s)" % (filename, lineno, obj_repr, size)
             self.stream.write(text + "\n")
         self.stream.flush()
 
