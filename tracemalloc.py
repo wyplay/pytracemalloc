@@ -106,7 +106,7 @@ get_process_memory.psutil_process = None
 _TRACE_ZERO = (0, 0, 0, 0)
 
 class _TopSnapshot:
-    __slots__ = ('name', 'stats', 'process_memory')
+    __slots__ = ('name', 'stats', 'process_memory', 'user_data')
 
     def __init__(self, top):
         self.name = top.name
@@ -184,7 +184,7 @@ class _Top:
 
         if snapshot is not None:
             for key, trace in _iteritems(snapshot):
-                trace = [-trace[1], 0, -trace[3], 0]
+                trace = (-trace[1], 0, -trace[3], 0)
                 stats.append((key[0], key[1], trace))
 
         self.top_stats = stats
@@ -366,6 +366,7 @@ def _lazy_import_pickle():
 
 class Snapshot:
     FORMAT_VERSION = 1
+    __slots__ = ('stats', 'timestamp', 'pid', 'process_memory', 'user_data')
 
     def __init__(self, stats, timestamp, pid, process_memory, user_data):
         self.stats = stats
