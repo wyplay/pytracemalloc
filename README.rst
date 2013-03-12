@@ -191,9 +191,12 @@ Classes
 
    Attributes:
 
+   - color (bool, default: stream.isatty()): if True, use colors
    - cumulative (bool, default: False): if True, display() displays all
      uncollectable objects, if False, display() only displays new uncollectable
      objects.
+   - format_object (callable, default: repr): function formatting an object
+
 
  * DisplayTop(count: int): Displaying to top N of the biggest allocation.
    Methods:
@@ -205,6 +208,7 @@ Classes
 
    Attributes:
 
+   - color (bool, default: stream.isatty()): if True, use colors
    - compare_with_previous (bool, default: True): if True, compare with the
      previous top, otherwise compare with the first one
    - filename_parts (int, default: 3): Number of displayed filename parts
@@ -216,6 +220,7 @@ Classes
    - show_size (bool, default: True): if True, show the size of allocations
    - user_data_callback (callable, default: None): optional callback collecting
      user data. See Snapshot.create().
+
 
  * Snapshot: Snapshot of Python memory allocations. Use TakeSnapshot to
    regulary take snapshots.
@@ -238,6 +243,7 @@ Classes
    - pid (int): identifier of the process which created the snapshot
    - stats (dict): raw memory allocation statistics
    - timestamp (str): date and time of the creation of the snapshot
+
 
  * TakeSnapshot: Task taking snapshots of Python memory allocations: write them
    into files.
