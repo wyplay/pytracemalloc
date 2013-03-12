@@ -157,7 +157,7 @@ class _Top:
                     size, count = item
                     if snapshot is not None:
                         previous = snapshot.pop(key, _TRACE_ZERO)
-                        trace = (size - previous[0], size, count - previous[2], count)
+                        trace = (size - previous[1], size, count - previous[3], count)
                     else:
                         trace = (0, size, 0, count)
                     if lineno is None:

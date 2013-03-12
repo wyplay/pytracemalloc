@@ -288,6 +288,7 @@ trace_free(trace_free_t func, void *ptr)
         trace_log_dealloc(ptr, trace);
 }
 
+#ifdef WITH_FREE_LIST
 static void
 trace_free_list_alloc(PyObject *op)
 {
@@ -328,6 +329,7 @@ trace_free_list_free(PyObject *op)
     if (trace != NULL)
         trace_log_dealloc(ptr, trace);
 }
+#endif
 
 static void *
 trace_mem_malloc(size_t size)
@@ -502,9 +504,11 @@ trace_register_allocators(void)
                          trace_object_free) < 0)
         return -1;
 
+#ifdef WITH_FREE_LIST
     if (_PyFreeList_SetAllocators(trace_free_list_alloc,
                                   trace_free_list_free) < 0)
         return -1;
+#endif
 
     return 0;
 }
