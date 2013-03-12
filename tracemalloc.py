@@ -519,6 +519,13 @@ class _GetUncollectable:
 
 class DisplayUncollectable:
     def __init__(self, file=None):
+        try:
+            # Python 3
+            import reprlib
+        except ImportError:
+            # Python 2
+            import repr as reprlib
+
         if file is not None:
             self.stream = file
         else:
@@ -527,7 +534,11 @@ class DisplayUncollectable:
         self._getter = _GetUncollectable()
         self._objects = []
         self.color = self.stream.isatty()
-        self.format_object = repr
+        reprobj = reprlib.Repr()
+        reprobj.maxstring = 100
+        reprobj.maxother = 100
+        reprobj.maxlevel = 1
+        self.format_object = reprobj.repr
 
     def display(self):
         objects = self._getter.get_new_objects()

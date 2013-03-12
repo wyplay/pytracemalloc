@@ -195,7 +195,7 @@ Classes
    - cumulative (bool, default: False): if True, display() displays all
      uncollectable objects, if False, display() only displays new uncollectable
      objects.
-   - format_object (callable, default: repr): function formatting an object
+   - format_object (callable, default: repr.repr): function formatting an object
 
 
  * DisplayTop(count: int): Displaying to top N of the biggest allocation.
