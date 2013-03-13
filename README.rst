@@ -184,7 +184,9 @@ Functions
 Classes
 -------
 
-* DisplayUncollectable: Display uncollectable objects.
+* DisplayUncollectable: Display uncollectable objects, see the documentation
+  of gc.garbage. Use gc.set_debug(gc.DEBUG_SAVEALL) to display all deleted
+  objects.
   Methods:
 
   - display(): display uncollectable objects
@@ -279,18 +281,21 @@ Changelog
 
 Version 0.8
 
-- the top uses colors and displays also the memory usage of the process
-- add DisplayUncollectable class
-- add get_process_memory() function
+- The top uses colors and displays also the memory usage of the process
+- Add DisplayUncollectable class
+- Add get_process_memory() function
 - Support collecting arbitrary user data using a callback: Snapshot.create(),
   DisplayTop() and TakeSnapshot() have has an optional user_data_callback
   parameter/attribute
-- display the name of the previous snapshot when comparing snapshots
-- add --color and --no-color command line options
-- --include and --exclude command line options can now be specified multiple
-  times
-- automatically disable tracemalloc at exit
-- remove get_source() and get_stats() functions: they are now private
+- Display the name of the previous snapshot when comparing two snapshots
+- Command line (-m tracemalloc):
+
+  * Add --color and --no-color options
+  * --include and --exclude command line options can now be specified
+    multiple times
+
+- Automatically disable tracemalloc at exit
+- Remove get_source() and get_stats() functions: they are now private
 
 Version 0.7 (2013-03-04)
 

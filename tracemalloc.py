@@ -492,7 +492,6 @@ class _GetUncollectable:
         enable()
         import gc
         self._gc = gc
-        self._gc.set_debug(self._gc.DEBUG_SAVEALL)
         self.seen = set()
         self._gc.collect()
         garbage = tuple(self._gc.garbage)
