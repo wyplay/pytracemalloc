@@ -5,11 +5,11 @@ pytracemalloc
 Debug tool tracking Python memory allocations. Provide the following
 information:
 
- * Allocated size and number of allocations per file,
-   or optionally per file and line number
- * Compute the average size of memory allocations
- * Compute delta between two "snapshots"
- * Source of a memory allocation: filename and line number
+* Allocated size and number of allocations per file,
+  or optionally per file and line number
+* Compute the average size of memory allocations
+* Compute delta between two "snapshots"
+* Source of a memory allocation: filename and line number
 
 Example (compact)::
 
@@ -90,14 +90,14 @@ To display and compare snapshots, use the following command::
 
 Useful options:
 
- * ``--line-number`` (``-l``): use also the line number to group
-   Python memory allocations
- * ``--first``: compare with the first trace, instead of with the previous
-   trace
- * ``--include=MATCH``: Only include filenames matching pattern MATCH,
-   the option can be specified multiple times
- * ``--exclude=MATCH``: Exclude filenames matching pattern MATCH,
-   the option can be specified multiple times
+* ``--line-number`` (``-l``): use also the line number to group
+  Python memory allocations
+* ``--first``: compare with the first trace, instead of with the previous
+  trace
+* ``--include=MATCH``: Only include filenames matching pattern MATCH,
+  the option can be specified multiple times
+* ``--exclude=MATCH``: Exclude filenames matching pattern MATCH,
+  the option can be specified multiple times
 
 Display the help to see more options to customize the display, type::
 
@@ -114,17 +114,17 @@ Installation
 
 You need a modified Python runtime:
 
- * Download Python source code
- * Apply python2.7.patch or python3.4.patch
- * Compile and install Python
- * It can be installed in a custom directory
+* Download Python source code
+* Apply python2.7.patch or python3.4.patch
+* Compile and install Python
+* It can be installed in a custom directory
 
 Dependencies:
 
- * `Python <http://www.python.org>`_ 2.5 - 3.4
- * `glib <http://www.gtk.org>`_ version 2
- * (optional) `psutil <https://pypi.python.org/pypi/psutil>`_ to get the
-   process memory
+* `Python <http://www.python.org>`_ 2.5 - 3.4
+* `glib <http://www.gtk.org>`_ version 2
+* (optional) `psutil <https://pypi.python.org/pypi/psutil>`_ to get the
+  process memory
 
 Install::
 
@@ -145,122 +145,122 @@ The version can be read a string from ``tracemalloc.__version__``.
 Functions
 ---------
 
-enable():
+- ``enable()``
 
-   Start tracing Python memory allocations.
+  Start tracing Python memory allocations.
 
-disable():
+- ``disable()``
 
-   Stop tracing Python memory allocations
-   and stop the timer started by start_timer().
+  Stop tracing Python memory allocations
+  and stop the timer started by start_timer().
 
-get_process_memory()
+- ``get_process_memory()``
 
-   Get the memory usage of the current process in bytes.
-   Return None if the platform is not supported.
+  Get the memory usage of the current process in bytes.
+  Return None if the platform is not supported.
 
-   Use the psutil module if available.
+  Use the psutil module if available.
 
-   New in pytracemalloc 0.8.
+  New in pytracemalloc 0.8.
 
-start_timer(delay: int, func: callable, args: tuple=(), kwargs: dict={})
+- ``start_timer(delay: int, func: callable, args: tuple=(), kwargs: dict={})``
 
-   Start a timer calling ``func(*args, **kwargs)`` every *delay* seconds.
+  Start a timer calling ``func(*args, **kwargs)`` every *delay* seconds.
 
-   The timer is based on the Python memory allocator, it is not real time.
-   *func* is called at least after *delay* seconds, it is not called exactly
-   after *delay* seconds if no Python memory allocation occurred.
+  The timer is based on the Python memory allocator, it is not real time.
+  ``func`` is called at least after ``delay`` seconds, it is not called exactly
+  after ``delay`` seconds if no Python memory allocation occurred.
 
-   If start_timer() is called twice, previous parameters are replaced. The
-   timer has a resolution of 1 second.
+  If ``start_timer()`` is called twice, previous parameters are replaced. The
+  timer has a resolution of 1 second.
 
-   start_timer() is used by DisplayTop and TakeSnapshot to run regulary a task.
+  ``start_timer()`` is used by ``DisplayTop`` and ``TakeSnapshot`` to run regulary a task.
 
-stop_timer()
+- ``stop_timer()``
 
-   Stop the timer started by start_timer().
+  Stop the timer started by ``start_timer()``.
 
 
 Classes
 -------
 
- * DisplayUncollectable: Display uncollectable objects.
-   Methods:
+* DisplayUncollectable: Display uncollectable objects.
+  Methods:
 
-   - display(): display uncollectable objects
+  - display(): display uncollectable objects
 
-   Attributes:
+  Attributes:
 
-   - color (bool, default: stream.isatty()): if True, use colors
-   - cumulative (bool, default: False): if True, display() displays all
-     uncollectable objects, if False, display() only displays new uncollectable
-     objects.
-   - format_object (callable, default: repr.repr): function formatting an object
-
-
- * DisplayTop(count: int): Displaying to top N of the biggest allocation.
-   Methods:
-
-   - display(): display the top
-   - start(delay: int): start a task using tracemalloc timer to display
-     the top every delay seconds
-   - stop(): stop the task started by the start() method
-
-   Attributes:
-
-   - color (bool, default: stream.isatty()): if True, use colors
-   - compare_with_previous (bool, default: True): if True, compare with the
-     previous top, otherwise compare with the first one
-   - filename_parts (int, default: 3): Number of displayed filename parts
-   - show_average (bool, default: True): if True, show the average size of
-     allocations
-   - show_count (bool, default: True): if True, show the number of allocations
-   - show_lineno (bool, default: False): if True, use also the line number,
-     not only the filename
-   - show_size (bool, default: True): if True, show the size of allocations
-   - user_data_callback (callable, default: None): optional callback collecting
-     user data. See Snapshot.create().
+  - color (bool, default: stream.isatty()): if True, use colors
+  - cumulative (bool, default: False): if True, display() displays all
+    uncollectable objects, if False, display() only displays new uncollectable
+    objects.
+  - format_object (callable, default: repr.repr): function formatting an object
 
 
- * Snapshot: Snapshot of Python memory allocations. Use TakeSnapshot to
-   regulary take snapshots.
-   Methods:
+* DisplayTop(count: int): Displaying to top N of the biggest allocation.
+  Methods:
 
-   - create(user_data_callback=None): take a snapshot. If user_data_callback
-     is specified, it must be a callback returning a list of
-     (title: str, format: str, value: int). format must be "size". The list
-     must always have the same size and the same order to be able to compute
-     differences between values.
-     Example: [('Video memory', 'size', 234902)].
-   - filter_filenames(patterns: str|list, include: bool): remove filenames not
-     matching any pattern if include is True, or remove filenames matching a
-     pattern if include is False (exclude). See fnmatch.fnmatch() for the
-     syntax of patterns.
-   - write(filename): write the snapshot into a file
+  - display(): display the top
+  - start(delay: int): start a task using tracemalloc timer to display
+    the top every delay seconds
+  - stop(): stop the task started by the start() method
 
-   Attributes:
+  Attributes:
 
-   - pid (int): identifier of the process which created the snapshot
-   - stats (dict): raw memory allocation statistics
-   - timestamp (str): date and time of the creation of the snapshot
+  - color (bool, default: stream.isatty()): if True, use colors
+  - compare_with_previous (bool, default: True): if True, compare with the
+    previous top, otherwise compare with the first one
+  - filename_parts (int, default: 3): Number of displayed filename parts
+  - show_average (bool, default: True): if True, show the average size of
+    allocations
+  - show_count (bool, default: True): if True, show the number of allocations
+  - show_lineno (bool, default: False): if True, use also the line number,
+    not only the filename
+  - show_size (bool, default: True): if True, show the size of allocations
+  - user_data_callback (callable, default: None): optional callback collecting
+    user data. See Snapshot.create().
 
 
- * TakeSnapshot: Task taking snapshots of Python memory allocations: write them
-   into files.
-   Methods:
+* Snapshot: Snapshot of Python memory allocations. Use TakeSnapshot to
+  regulary take snapshots.
+  Methods:
 
-   - start(delay: int): start a task taking a snapshot every delay seconds
-   - stop(): stop the task started by the start() method
-   - take_snapshot(): take a snapshot
+  - create(user_data_callback=None): take a snapshot. If user_data_callback
+    is specified, it must be a callback returning a list of
+    (title: str, format: str, value: int). format must be "size". The list
+    must always have the same size and the same order to be able to compute
+    differences between values.
+    Example: [('Video memory', 'size', 234902)].
+  - filter_filenames(patterns: str|list, include: bool): remove filenames not
+    matching any pattern if include is True, or remove filenames matching a
+    pattern if include is False (exclude). See fnmatch.fnmatch() for the
+    syntax of patterns.
+  - write(filename): write the snapshot into a file
 
-   Attribute:
+  Attributes:
 
-   - filename_template (str): template to create a filename. "Variables" can
-     be used in the template: "$pid" (identifier of the current process),
-     "$timestamp" (current date and time) and "$counter" (counter starting at 1
-     and incremented at each snapshot).
-   - user_data_callback (callable, default: None): optional callback collecting
-     user data. See Snapshot.create().
+  - pid (int): identifier of the process which created the snapshot
+  - stats (dict): raw memory allocation statistics
+  - timestamp (str): date and time of the creation of the snapshot
+
+
+* TakeSnapshot: Task taking snapshots of Python memory allocations: write them
+  into files.
+  Methods:
+
+  - start(delay: int): start a task taking a snapshot every delay seconds
+  - stop(): stop the task started by the start() method
+  - take_snapshot(): take a snapshot
+
+  Attribute:
+
+  - filename_template (str): template to create a filename. "Variables" can
+    be used in the template: "$pid" (identifier of the current process),
+    "$timestamp" (current date and time) and "$counter" (counter starting at 1
+    and incremented at each snapshot).
+  - user_data_callback (callable, default: None): optional callback collecting
+    user data. See Snapshot.create().
 
 
 Python internals
@@ -268,10 +268,10 @@ Python internals
 
 Free lists:
 
- * int, float, unicode
- * tuple, list, set, dict
- * binded method, C function
- * frame
+* int, float, unicode
+* tuple, list, set, dict
+* binded method, C function
+* frame
 
 
 Changelog
@@ -279,39 +279,39 @@ Changelog
 
 Version 0.8
 
- - the top uses colors and displays also the memory usage of the process
- - add DisplayUncollectable class
- - add get_process_memory() function
- - Support collecting arbitrary user data using a callback: Snapshot.create(),
-   DisplayTop() and TakeSnapshot() have has an optional user_data_callback
-   parameter/attribute
- - display the name of the previous snapshot when comparing snapshots
- - add --color and --no-color command line options
- - --include and --exclude command line options can now be specified multiple
-   times
- - automatically disable tracemalloc at exit
- - remove get_source() and get_stats() functions: they are now private
+- the top uses colors and displays also the memory usage of the process
+- add DisplayUncollectable class
+- add get_process_memory() function
+- Support collecting arbitrary user data using a callback: Snapshot.create(),
+  DisplayTop() and TakeSnapshot() have has an optional user_data_callback
+  parameter/attribute
+- display the name of the previous snapshot when comparing snapshots
+- add --color and --no-color command line options
+- --include and --exclude command line options can now be specified multiple
+  times
+- automatically disable tracemalloc at exit
+- remove get_source() and get_stats() functions: they are now private
 
 Version 0.7 (2013-03-04)
 
- - First public version
+- First public version
 
 
 See also
 ========
 
- * `Meliae: Python Memory Usage Analyzer
-   <https://pypi.python.org/pypi/meliae>`_
- * `Issue #3329: API for setting the memory allocator used by Python
-   <http://bugs.python.org/issue3329>`_
- * `Guppy-PE: umbrella package combining Heapy and GSL
-   <http://guppy-pe.sourceforge.net/>`_
- * `PySizer <http://pysizer.8325.org/>`_: developed for Python 2.4
- * `memory_profiler <https://pypi.python.org/pypi/memory_profiler>`_
- * `pympler <http://code.google.com/p/pympler/>`_
- * `Dozer <https://pypi.python.org/pypi/Dozer>`_: WSGI Middleware version of
-   the CherryPy memory leak debugger
- * `objgraph <http://mg.pov.lt/objgraph/>`_
- * `caulk <https://github.com/smartfile/caulk/>`_
- * Python 3.4 now counts the total number of allocated blocks
+* `Meliae: Python Memory Usage Analyzer
+  <https://pypi.python.org/pypi/meliae>`_
+* `Issue #3329: API for setting the memory allocator used by Python
+  <http://bugs.python.org/issue3329>`_
+* `Guppy-PE: umbrella package combining Heapy and GSL
+  <http://guppy-pe.sourceforge.net/>`_
+* `PySizer <http://pysizer.8325.org/>`_: developed for Python 2.4
+* `memory_profiler <https://pypi.python.org/pypi/memory_profiler>`_
+* `pympler <http://code.google.com/p/pympler/>`_
+* `Dozer <https://pypi.python.org/pypi/Dozer>`_: WSGI Middleware version of
+  the CherryPy memory leak debugger
+* `objgraph <http://mg.pov.lt/objgraph/>`_
+* `caulk <https://github.com/smartfile/caulk/>`_
+* Python 3.4 now counts the total number of allocated blocks
 
