@@ -7,5 +7,5 @@ install: all
 	$(PYTHON) setup.py install
 
 clean:
-	rm -rf build dist
+	rm -rf build dist *.pyc __pycache__
 
