@@ -13,6 +13,9 @@ except ImportError:
     # Python 3
     from io import StringIO
 
+# Need a special patch to track Python free lists (ex: PyDict free list)
+TRACK_FREE_LIST = False
+
 EMPTY_STRING_SIZE = sys.getsizeof(b'')
 THIS_FILE = os.path.basename(__file__)
 
@@ -102,15 +105,19 @@ class TestTracemalloc(unittest.TestCase):
         leak = None
 
         objects = getter.get_new_objects()
-        self.assertEqual(len(objects), 2)
+        if TRACK_FREE_LIST:
+            self.assertEqual(len(objects), 2)
+        else:
+            self.assertEqual(len(objects), 1)
 
         obj, obj_source = objects[0]
         self.assertEqual(id(obj), leak_id)
         self.assertGreater(obj_source[0], 1)
         self.assertEqual(obj_source[1:], leak_source)
 
-        obj, obj_source = objects[1]
-        self.assertEqual(id(obj), leak_dict_id)
+        if TRACK_FREE_LIST:
+            obj, obj_source = objects[1]
+            self.assertEqual(id(obj), leak_dict_id)
 
     def test_display_uncollectable(self):
         stream = StringIO()
@@ -125,10 +132,13 @@ class TestTracemalloc(unittest.TestCase):
 
         display.display()
         output = stream.getvalue().splitlines()
-        self.assertEqual(len(output), 2)
         self.assertIn('UncollectableObject', output[0])
         self.assertIn(THIS_FILE, output[0])
-        self.assertIn('{', output[1])
+        if TRACK_FREE_LIST:
+            self.assertEqual(len(output), 2)
+            self.assertIn('{', output[1])
+        else:
+            self.assertEqual(len(output), 1)
 
     def test_display_uncollectable_cumulative(self):
         stream = StringIO()
@@ -140,10 +150,13 @@ class TestTracemalloc(unittest.TestCase):
 
         display.display()
         output = stream.getvalue().splitlines()
-        self.assertEqual(len(output), 2)
         self.assertIn('UncollectableObject', output[0])
         self.assertIn(THIS_FILE, output[0])
-        self.assertIn('{', output[1])
+        if TRACK_FREE_LIST:
+            self.assertEqual(len(output), 2)
+            self.assertIn('{', output[1])
+        else:
+            self.assertEqual(len(output), 1)
 
         # Leak 2
         UncollectableObject()
@@ -152,13 +165,18 @@ class TestTracemalloc(unittest.TestCase):
         stream.truncate()
         display.display()
         output = stream.getvalue().splitlines()
-        self.assertEqual(len(output), 4)
         self.assertIn('UncollectableObject', output[0])
         self.assertIn(THIS_FILE, output[0])
-        self.assertIn('{', output[1])
-        self.assertIn('UncollectableObject', output[2])
-        self.assertIn(THIS_FILE, output[2])
-        self.assertIn('{', output[3])
+        if TRACK_FREE_LIST:
+            self.assertEqual(len(output), 4)
+            self.assertIn('{', output[1])
+            self.assertIn('UncollectableObject', output[2])
+            self.assertIn(THIS_FILE, output[2])
+            self.assertIn('{', output[3])
+        else:
+            self.assertEqual(len(output), 2)
+            self.assertIn('UncollectableObject', output[1])
+            self.assertIn(THIS_FILE, output[1])
 
 
 if __name__ == "__main__":

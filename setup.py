@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # Todo list to prepare a release:
+#  - run unit tests
 #  - update VERSION in _tracemalloc.c and setup.py
 #  - set release date in the README.rst file
 #  - git commit -a
