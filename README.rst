@@ -184,19 +184,18 @@ Functions
 Classes
 -------
 
-* DisplayUncollectable: Display uncollectable objects, see the documentation
-  of gc.garbage. Use gc.set_debug(gc.DEBUG_SAVEALL) to display all deleted
-  objects.
+* DisplayGarbage: Display new objects added to gc.garbage. By default,
+  it displays uncollectable objects, see the documentation of gc.garbage.
+  Use gc.set_debug(gc.DEBUG_SAVEALL) to display all deleted objects.
   Methods:
 
-  - display(): display uncollectable objects
+  - display(): display new objects added to gc.garbage since last call
 
   Attributes:
 
   - color (bool, default: stream.isatty()): if True, use colors
   - cumulative (bool, default: False): if True, display() displays all
-    uncollectable objects, if False, display() only displays new uncollectable
-    objects.
+    objects, if False, display() only displays new objects added to gc.garbage.
   - format_object (callable, default: repr.repr): function formatting an object
 
 
@@ -282,7 +281,7 @@ Changelog
 Version 0.8
 
 - The top uses colors and displays also the memory usage of the process
-- Add DisplayUncollectable class
+- Add DisplayGarbage class
 - Add get_process_memory() function
 - Support collecting arbitrary user data using a callback: Snapshot.create(),
   DisplayTop() and TakeSnapshot() have has an optional user_data_callback

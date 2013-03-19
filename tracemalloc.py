@@ -516,7 +516,7 @@ class _GetUncollectable:
         return objects
 
 
-class DisplayUncollectable:
+class DisplayGarbage:
     def __init__(self, file=None):
         try:
             # Python 3

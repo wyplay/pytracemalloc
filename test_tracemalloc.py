@@ -1,3 +1,4 @@
+import gc
 import os
 import sys
 import time
@@ -43,6 +44,7 @@ class TestTracemalloc(unittest.TestCase):
 
     def tearDown(self):
         tracemalloc.disable()
+        gc.set_debug(0)
 
     def test_get_trace(self):
         size = 12345
@@ -95,7 +97,7 @@ class TestTracemalloc(unittest.TestCase):
         obj2, source2 = allocate_bytes(123)
         self.assertEqual(len(calls), 1)
 
-    def test_get_uncollectable(self):
+    def _test_get_uncollectable(self, saveall):
         getter = tracemalloc._GetUncollectable()
 
         leak_source = get_source(1)
@@ -105,7 +107,7 @@ class TestTracemalloc(unittest.TestCase):
         leak = None
 
         objects = getter.get_new_objects()
-        if TRACK_FREE_LIST:
+        if saveall:
             self.assertEqual(len(objects), 2)
         else:
             self.assertEqual(len(objects), 1)
@@ -115,13 +117,20 @@ class TestTracemalloc(unittest.TestCase):
         self.assertGreater(obj_source[0], 1)
         self.assertEqual(obj_source[1:], leak_source)
 
-        if TRACK_FREE_LIST:
+        if saveall:
             obj, obj_source = objects[1]
             self.assertEqual(id(obj), leak_dict_id)
 
-    def test_display_uncollectable(self):
+    def test_get_uncollectable(self):
+        self._test_get_uncollectable(False)
+
+    def test_get_uncollectable_saveall(self):
+        gc.set_debug(gc.DEBUG_SAVEALL)
+        self._test_get_uncollectable(True)
+
+    def _test_display_uncollectable(self, saveall):
         stream = StringIO()
-        display = tracemalloc.DisplayUncollectable(file=stream)
+        display = tracemalloc.DisplayGarbage(file=stream)
         stream.truncate()
 
         leak_source = get_source(1)
@@ -134,15 +143,23 @@ class TestTracemalloc(unittest.TestCase):
         output = stream.getvalue().splitlines()
         self.assertIn('UncollectableObject', output[0])
         self.assertIn(THIS_FILE, output[0])
-        if TRACK_FREE_LIST:
+        if saveall:
             self.assertEqual(len(output), 2)
             self.assertIn('{', output[1])
         else:
             self.assertEqual(len(output), 1)
 
-    def test_display_uncollectable_cumulative(self):
+    def test_display_uncollectable(self):
+        self._test_display_uncollectable(False)
+
+    def test_display_uncollectable_saveall(self):
+        gc.set_debug(gc.DEBUG_SAVEALL)
+        self._test_display_uncollectable(True)
+
+    def _test_display_uncollectable_cumulative(self, saveall):
+        gc.set_debug(gc.DEBUG_SAVEALL)
         stream = StringIO()
-        display = tracemalloc.DisplayUncollectable(file=stream)
+        display = tracemalloc.DisplayGarbage(file=stream)
         display.cumulative = True
 
         # Leak 1
@@ -152,7 +169,7 @@ class TestTracemalloc(unittest.TestCase):
         output = stream.getvalue().splitlines()
         self.assertIn('UncollectableObject', output[0])
         self.assertIn(THIS_FILE, output[0])
-        if TRACK_FREE_LIST:
+        if saveall:
             self.assertEqual(len(output), 2)
             self.assertIn('{', output[1])
         else:
@@ -167,7 +184,7 @@ class TestTracemalloc(unittest.TestCase):
         output = stream.getvalue().splitlines()
         self.assertIn('UncollectableObject', output[0])
         self.assertIn(THIS_FILE, output[0])
-        if TRACK_FREE_LIST:
+        if saveall:
             self.assertEqual(len(output), 4)
             self.assertIn('{', output[1])
             self.assertIn('UncollectableObject', output[2])
@@ -177,6 +194,13 @@ class TestTracemalloc(unittest.TestCase):
             self.assertEqual(len(output), 2)
             self.assertIn('UncollectableObject', output[1])
             self.assertIn(THIS_FILE, output[1])
+
+    def test_display_uncollectable_cumulative(self):
+        self._test_display_uncollectable_cumulative(False)
+
+    def test_display_uncollectable_cumulative(self):
+        gc.set_debug(gc.DEBUG_SAVEALL)
+        self._test_display_uncollectable_cumulative(True)
 
 
 if __name__ == "__main__":
