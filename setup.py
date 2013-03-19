@@ -5,9 +5,9 @@
 #  - update VERSION in _tracemalloc.c and setup.py
 #  - set release date in the README.rst file
 #  - git commit -a
-#  - git tag -a tracemalloc-VERSION
+#  - git tag -a pytracemalloc-VERSION
 #  - git push --tags
-#  - ./setup.py register sdist upload
+#  - python setup.py register sdist upload
 #
 # After the release:
 #  - set version to n+1
@@ -21,7 +21,7 @@ import os
 import subprocess
 import sys
 
-VERSION = '0.8'
+VERSION = '0.9'
 
 CLASSIFIERS = [
     'Development Status :: 3 - Alpha',
