@@ -278,7 +278,7 @@ Free lists:
 Changelog
 =========
 
-Version 0.8
+Version 0.8 (2013-03-19)
 
 - The top uses colors and displays also the memory usage of the process
 - Add DisplayGarbage class
