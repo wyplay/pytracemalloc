@@ -1,6 +1,6 @@
-diff -r 2370e331241b Include/objimpl.h
---- a/Include/objimpl.h	Sat Sep 01 14:25:48 2012 +0300
-+++ b/Include/objimpl.h	Mon Mar 04 01:38:00 2013 +0100
+diff -r 6aab72424063 Include/objimpl.h
+--- a/Include/objimpl.h	Sun Mar 17 21:28:29 2013 -0700
++++ b/Include/objimpl.h	Tue Mar 19 02:23:56 2013 +0100
 @@ -99,9 +99,7 @@ PyAPI_FUNC(void *) PyObject_Realloc(void
  PyAPI_FUNC(void) PyObject_Free(void *);
  
@@ -44,9 +44,9 @@ diff -r 2370e331241b Include/objimpl.h
  
  /* for source compatibility with 2.2 */
  #define _PyObject_Del           PyObject_Free
-diff -r 2370e331241b Include/pymem.h
---- a/Include/pymem.h	Sat Sep 01 14:25:48 2012 +0300
-+++ b/Include/pymem.h	Mon Mar 04 01:38:00 2013 +0100
+diff -r 6aab72424063 Include/pymem.h
+--- a/Include/pymem.h	Sun Mar 17 21:28:29 2013 -0700
++++ b/Include/pymem.h	Tue Mar 19 02:23:56 2013 +0100
 @@ -49,6 +49,24 @@ extern "C" {
     performed on failure (no exception is set, no warning is printed, etc).
  */
@@ -103,21 +103,10 @@ diff -r 2370e331241b Include/pymem.h
  
  /*
   * Type-oriented memory interface
-diff -r 2370e331241b Lib/site.py
---- a/Lib/site.py	Sat Sep 01 14:25:48 2012 +0300
-+++ b/Lib/site.py	Mon Mar 04 01:38:00 2013 +0100
-@@ -57,7 +57,6 @@ site-specific customizations.  If this i
- ImportError exception, it is silently ignored.
- 
- """
--
- import sys
- import os
- import __builtin__
-diff -r 2370e331241b Objects/object.c
---- a/Objects/object.c	Sat Sep 01 14:25:48 2012 +0300
-+++ b/Objects/object.c	Mon Mar 04 01:38:00 2013 +0100
-@@ -2318,27 +2318,6 @@ PyTypeObject *_Py_cobject_hack = &PyCObj
+diff -r 6aab72424063 Objects/object.c
+--- a/Objects/object.c	Sun Mar 17 21:28:29 2013 -0700
++++ b/Objects/object.c	Tue Mar 19 02:23:56 2013 +0100
+@@ -2335,27 +2335,6 @@ PyTypeObject *_Py_cobject_hack = &PyCObj
  Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
  
  
@@ -145,9 +134,9 @@ diff -r 2370e331241b Objects/object.c
  /* These methods are used to control infinite recursion in repr, str, print,
     etc.  Container objects that may recursively contain themselves,
     e.g. builtin dictionaries and lists, should used Py_ReprEnter() and
-diff -r 2370e331241b Objects/obmalloc.c
---- a/Objects/obmalloc.c	Sat Sep 01 14:25:48 2012 +0300
-+++ b/Objects/obmalloc.c	Mon Mar 04 01:38:00 2013 +0100
+diff -r 6aab72424063 Objects/obmalloc.c
+--- a/Objects/obmalloc.c	Sun Mar 17 21:28:29 2013 -0700
++++ b/Objects/obmalloc.c	Tue Mar 19 02:23:56 2013 +0100
 @@ -1,5 +1,181 @@
  #include "Python.h"
  
