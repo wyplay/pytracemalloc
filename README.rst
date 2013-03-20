@@ -115,7 +115,8 @@ Installation
 You need a modified Python runtime:
 
 * Download Python source code
-* Apply python2.7.patch or python3.4.patch
+* Apply python2.5.6.patch, python2.7.patch or python3.4.patch depending
+  on your Python version
 * Compile and install Python
 * It can be installed in a custom directory
 
