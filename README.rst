@@ -278,6 +278,11 @@ Free lists:
 Changelog
 =========
 
+Version 0.8.1
+
+- Fix python2.7.patch and python3.4.patch when Python is not compiled in debug
+  mode (without --with-pydebug)
+
 Version 0.8 (2013-03-19)
 
 - The top uses colors and displays also the memory usage of the process
