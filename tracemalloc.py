@@ -226,8 +226,7 @@ class DisplayTop:
                 return _format_size(trace[1], self.color)
 
         parts = []
-        if (self.show_size
-        and (trace[1] or trace[0] or not self.show_count)):
+        if self.show_size:
             if show_diff:
                 text = _format_size_diff(trace[1], trace[0], self.color)
             else:

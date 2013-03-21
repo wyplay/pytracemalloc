@@ -185,9 +185,10 @@ Functions
 Classes
 -------
 
-* DisplayGarbage: Display new objects added to gc.garbage. By default,
-  it displays uncollectable objects, see the documentation of gc.garbage.
-  Use gc.set_debug(gc.DEBUG_SAVEALL) to display all deleted objects.
+* DisplayGarbage(file=sys.stdout): Display new objects added to gc.garbage. By
+  default, it displays uncollectable objects, see the documentation of
+  gc.garbage. Use gc.set_debug(gc.DEBUG_SAVEALL) to display all deleted
+  objects.
   Methods:
 
   - display(): display new objects added to gc.garbage since last call
@@ -200,7 +201,7 @@ Classes
   - format_object (callable, default: repr.repr): function formatting an object
 
 
-* DisplayTop(count: int): Displaying to top N of the biggest allocation.
+* DisplayTop(count: int, file=sys.stdout): Displaying to top N of the biggest allocation.
   Methods:
 
   - display(): display the top
@@ -283,6 +284,8 @@ Version 0.8.1
 
 - Fix python2.7.patch and python3.4.patch when Python is not compiled in debug
   mode (without --with-pydebug)
+- Fix DisplayTop: display "0 B" instead of an empty string if the size is zero
+  (ex: trace in user data)
 
 Version 0.8 (2013-03-19)
 
