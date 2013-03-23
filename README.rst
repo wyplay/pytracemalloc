@@ -141,7 +141,7 @@ will be ignored by tracemalloc.
 
 disable() is automatically called at exit using the atexit module.
 
-The version can be read a string from ``tracemalloc.__version__``.
+The version can be read as a string from ``tracemalloc.__version__``.
 
 Functions
 ---------
