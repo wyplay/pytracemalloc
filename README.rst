@@ -285,12 +285,13 @@ Classes
 Changelog
 =========
 
-Version 0.8.1
+Version 0.8.1 (2013-03-23)
 
 - Fix python2.7.patch and python3.4.patch when Python is not compiled in debug
   mode (without --with-pydebug)
 - Fix DisplayTop: display "0 B" instead of an empty string if the size is zero
   (ex: trace in user data)
+- setup.py automatically detects which patch was applied on Python
 
 Version 0.8 (2013-03-19)
 
