@@ -120,6 +120,22 @@ You need a modified Python runtime:
 * Compile and install Python
 * It can be installed in a custom directory
 
+Using these patches, pytracemalloc is unable to track creation of new objects
+using free lists:
+
+* int, float, unicode
+* tuple, list, set, dict
+* binded method, C function
+* frame
+
+To track creation of all instrances, you may want to try experimental patches:
+
+* python2.7_track_free_list.patch: add an hook to be track usage of free lists.
+  Python is a slower with this patch, but tracemalloc is able to track all
+  Python objects.
+* Disable completly free lists: python2.5_no_free_list.patch and
+  python2.7_no_free_list.patch. Python is much slower using these patches.
+
 Dependencies:
 
 * `Python <http://www.python.org>`_ 2.5 - 3.4
@@ -264,17 +280,6 @@ Classes
     and incremented at each snapshot).
   - user_data_callback (callable, default: None): optional callback collecting
     user data. See Snapshot.create().
-
-
-Python internals
-================
-
-Free lists:
-
-* int, float, unicode
-* tuple, list, set, dict
-* binded method, C function
-* frame
 
 
 Changelog
