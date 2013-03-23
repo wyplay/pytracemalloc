@@ -17,6 +17,7 @@
 
 from __future__ import with_statement
 from distutils.core import setup, Extension
+import ctypes
 import os
 import subprocess
 import sys
@@ -36,9 +37,6 @@ CLASSIFIERS = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-with open('README.rst') as f:
-    long_description = f.read().strip()
-
 def pkg_config(name, arg, strip_prefix=0):
     args = ['pkg-config', name, arg]
     process = subprocess.Popen(args,
@@ -53,11 +51,28 @@ def pkg_config(name, arg, strip_prefix=0):
         args = [item[strip_prefix:] for item in args]
     return args
 
+pythonapi = ctypes.cdll.LoadLibrary(None)
+if not hasattr(pythonapi, 'Py_SetAllocators'):
+    print("Py_SetAllocators: missing, %s has not been patched" % sys.executable)
+    sys.exit(1)
+else:
+    print("Py_SetAllocators: present")
+
 library_dirs = pkg_config("glib-2.0", "--libs-only-L", 2)
 libraries = pkg_config("glib-2.0", "--libs-only-l", 2)
 include_dirs = pkg_config("glib-2.0", "--cflags-only-I", 2)
 cflags = pkg_config("glib-2.0", "--cflags-only-other")
 cflags.append('-DNDEBUG')
+if hasattr(pythonapi, '_PyFreeList_SetAllocators'):
+    print("_PyFreeList_SetAllocators: present, track free lists")
+    cflags.append('-DWITH_FREE_LIST')
+elif hasattr(pythonapi, '_PySys_UseFreeList'):
+    print("_PySys_UseFreeList: present, free lists are disabled")
+else:
+    print("_PyFreeList_SetAllocators, _PySys_UseFreeList: missing, free lists are used but not tracked")
+
+with open('README.rst') as f:
+    long_description = f.read().strip()
 
 ext = Extension(
     '_tracemalloc',
