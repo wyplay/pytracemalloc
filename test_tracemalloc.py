@@ -24,6 +24,9 @@ TRACK_FREE_LISTS = hasattr(pythonapi, '_PyFreeList_SetAllocators')
 EMPTY_STRING_SIZE = sys.getsizeof(b'')
 THIS_FILE = os.path.basename(__file__)
 
+# Minimum size in bytes of a C pointer (void*)
+MIN_SIZE_PTR = 4
+
 class UncollectableObject:
     def __init__(self):
         self.ref = self
@@ -89,23 +92,68 @@ class TestTracemalloc(unittest.TestCase):
 
     @unittest.skipUnless(TRACK_FREE_LISTS, "free lists are not tracked")
     def test_free_lists(self):
-        length = 10 ** 5
         data = None
 
-        for base in (
-            [None],   # test list
-            (None,),  # test tuple
-        ):
+        # FIXME: test more types: float, set, binded method, C function
+
+        for test_type in (int, unicode, tuple, list, dict):
             clear_stats()
 
-            filename, lineno = get_source(1)
-            data = base * length
-            min_size = 4 * length
+            if test_type in (tuple, list):
+                length = 10 ** 5
+                if test_type == tuple:
+                    base = (None,)
+                else:
+                    base = [None]
+                filename, lineno = get_source(1)
+                data = base * length
+                min_size = MIN_SIZE_PTR * length
+
+            elif test_type == dict:
+                length = 1024
+                items = [(str(key), key) for key in xrange(length)]
+                filename, lineno = get_source(1)
+                data = dict(items)
+                min_size = MIN_SIZE_PTR * length
+
+            elif test_type == unicode:
+                length = 4 * 1024
+
+                filename, lineno = get_source(1)
+                data = u"\uffff" * length
+
+                if hasattr(sys, 'getsizeof'):
+                    min_size = sys.getsizeof(data)
+                else:
+                    # In narrow mode, Python uses UCS-2: 16-bit per character
+                    min_size = 2 * length
+
+            else:
+                assert test_type == int
+
+                # build an integer bigger than 4 KB
+                pow2 = 1000000
+
+                filename, lineno = get_source(1)
+                data = 2 ** pow2
+
+                if hasattr(sys, 'getsizeof'):
+                    min_size = sys.getsizeof(data)
+                else:
+                    # Python 2.7 on 64-bit system uses 30 bits per digit
+                    ndigits = (pow2 + 1) // 30
+                    # 32 bits per Python digit
+                    min_size = ndigits * 4
 
             stats = tracemalloc._get_stats()
             trace = stats[filename][lineno]
             self.assertGreaterEqual(trace[0], min_size)
             self.assertGreaterEqual(trace[1], 1)
+
+            # Deallocate
+            data = None
+            stats = tracemalloc._get_stats()
+            self.assertNotIn(lineno, stats[filename])
 
 
     def test_timer(self):
