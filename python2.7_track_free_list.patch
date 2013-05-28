@@ -180,7 +180,7 @@ diff -r 92003d9aae0e Objects/floatobject.c
  float_dealloc(PyFloatObject *op)
  {
      if (PyFloat_CheckExact(op)) {
-+        _PyFreeList_Alloc(op);
++        _PyFreeList_Free(op);
          Py_TYPE(op) = (struct _typeobject *)free_list;
          free_list = op;
      }
@@ -247,7 +247,7 @@ diff -r 92003d9aae0e Objects/listobject.c
      }
 -    if (numfree < PyList_MAXFREELIST && PyList_CheckExact(op))
 +    if (numfree < PyList_MAXFREELIST && PyList_CheckExact(op)) {
-+        _PyFreeList_Alloc(op);
++        _PyFreeList_Free(op);
          free_list[numfree++] = op;
 +    }
      else
@@ -268,7 +268,7 @@ diff -r 92003d9aae0e Objects/methodobject.c
      Py_XDECREF(m->m_self);
      Py_XDECREF(m->m_module);
      if (numfree < PyCFunction_MAXFREELIST) {
-+        _PyFreeList_Alloc(m);
++        _PyFreeList_Free(m);
          m->m_self = (PyObject *)free_list;
          free_list = m;
          numfree++;
