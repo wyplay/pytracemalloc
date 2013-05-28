@@ -285,6 +285,10 @@ Classes
 Changelog
 =========
 
+Version 0.8.2
+
+- Fix code tracking Python free lists and python2.7_track_free_list.patch
+
 Version 0.8.1 (2013-03-23)
 
 - Fix python2.7.patch and python3.4.patch when Python is not compiled in debug

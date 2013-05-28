@@ -1,4 +1,6 @@
+import ctypes
 import gc
+import imp
 import os
 import sys
 import time
@@ -14,8 +16,10 @@ except ImportError:
     # Python 3
     from io import StringIO
 
+pythonapi = ctypes.cdll.LoadLibrary(None)
+
 # Need a special patch to track Python free lists (ex: PyDict free list)
-TRACK_FREE_LIST = False
+TRACK_FREE_LISTS = hasattr(pythonapi, '_PyFreeList_SetAllocators')
 
 EMPTY_STRING_SIZE = sys.getsizeof(b'')
 THIS_FILE = os.path.basename(__file__)
@@ -26,6 +30,10 @@ class UncollectableObject:
 
     def __del__(self):
         pass
+
+def clear_stats():
+    tracemalloc.disable()
+    tracemalloc.enable()
 
 def get_source(lineno_delta):
     filename = __file__
@@ -53,13 +61,16 @@ class TestTracemalloc(unittest.TestCase):
         self.assertEqual(trace, (size,) + obj_source)
 
     def test_get_process_memory(self):
-        obj_size = 10 ** 7
+        obj_size = 1024 * 1024
         orig = tracemalloc.get_process_memory()
         if orig is None:
             self.skipTest("get_process_memory is not supported")
         obj, obj_source = allocate_bytes(obj_size)
         curr = tracemalloc.get_process_memory()
-        self.assertGreaterEqual(curr - orig, obj_size)
+        # Allocating obj_size may allocate less memory than requested because
+        # the Linux kernel overallocates memory mappings... or something like
+        # that
+        self.assertGreaterEqual(curr - orig, obj_size // 2)
 
     def test_get_stats(self):
         total = 0
@@ -75,6 +86,27 @@ class TestTracemalloc(unittest.TestCase):
             stats = tracemalloc._get_stats()
             filename, lineno = source
             self.assertEqual(stats[filename][lineno], (total, count))
+
+    @unittest.skipUnless(TRACK_FREE_LISTS, "free lists are not tracked")
+    def test_free_lists(self):
+        length = 10 ** 5
+        data = None
+
+        for base in (
+            [None],   # test list
+            (None,),  # test tuple
+        ):
+            clear_stats()
+
+            filename, lineno = get_source(1)
+            data = base * length
+            min_size = 4 * length
+
+            stats = tracemalloc._get_stats()
+            trace = stats[filename][lineno]
+            self.assertGreaterEqual(trace[0], min_size)
+            self.assertGreaterEqual(trace[1], 1)
+
 
     def test_timer(self):
         calls = []
@@ -201,6 +233,10 @@ class TestTracemalloc(unittest.TestCase):
     def test_display_uncollectable_cumulative(self):
         gc.set_debug(gc.DEBUG_SAVEALL)
         self._test_display_uncollectable_cumulative(True)
+
+    def test_version(self):
+        setup_py = imp.load_source('setup', 'setup.py')
+        self.assertEqual(tracemalloc.__version__, setup_py.VERSION)
 
 
 if __name__ == "__main__":

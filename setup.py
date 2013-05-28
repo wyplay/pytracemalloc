@@ -22,7 +22,7 @@ import os
 import subprocess
 import sys
 
-VERSION = '0.8.1'
+VERSION = '0.8.2'
 
 CLASSIFIERS = [
     'Development Status :: 3 - Alpha',
@@ -97,5 +97,6 @@ options = {
     'py_modules': ["tracemalloc"],
 }
 
-setup(**options)
+if __name__ == "__main__":
+    setup(**options)
 
