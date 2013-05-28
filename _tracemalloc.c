@@ -292,10 +292,10 @@ trace_free(trace_free_t func, void *ptr)
 static void
 trace_free_list_alloc(PyObject *op)
 {
-    void *ptr;
-    PyTypeObject *type;
-    size_t size;
     trace_alloc_t *trace;
+    PyTypeObject *type;
+    void *ptr;
+    size_t size;
 
     if (!trace_config.enabled)
         return;
@@ -318,13 +318,18 @@ trace_free_list_alloc(PyObject *op)
 static void
 trace_free_list_free(PyObject *op)
 {
-    trace_alloc_t *trace;
+    PyTypeObject *type;
     void *ptr;
+    trace_alloc_t *trace;
 
     if (!trace_config.enabled)
         return;
 
-    ptr = (void *)op;
+    type = Py_TYPE(op);
+    if (PyType_IS_GC(type))
+        ptr = (void *)((char *)op - sizeof(PyGC_Head));
+    else
+        ptr = (void *)op;
     trace = g_hash_table_lookup(trace_allocs, ptr);
     if (trace != NULL)
         trace_log_dealloc(ptr, trace);
