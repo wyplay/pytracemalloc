@@ -155,9 +155,10 @@ Call ``tracemalloc.enable()`` as early as possible to get the most complete
 statistics. Otherwise, some Python memory allocations made by your application
 will be ignored by tracemalloc.
 
-disable() is automatically called at exit using the atexit module.
+Call ``tracemalloc.disable()`` to stop tracing memory allocations. It is
+automatically called at exit using the atexit module.
 
-The version can be read as a string from ``tracemalloc.__version__``.
+The version of the module can be read as a string: ``tracemalloc.__version__``.
 
 Functions
 ---------
@@ -185,13 +186,14 @@ Functions
   Start a timer calling ``func(*args, **kwargs)`` every *delay* seconds.
 
   The timer is based on the Python memory allocator, it is not real time.
-  ``func`` is called at least after ``delay`` seconds, it is not called exactly
+  ``func`` is called after at least ``delay`` seconds, it is not called exactly
   after ``delay`` seconds if no Python memory allocation occurred.
 
   If ``start_timer()`` is called twice, previous parameters are replaced. The
   timer has a resolution of 1 second.
 
-  ``start_timer()`` is used by ``DisplayTop`` and ``TakeSnapshot`` to run regulary a task.
+  ``start_timer()`` is used by ``DisplayTop`` and ``TakeSnapshot`` to run
+  regulary a task.
 
 - ``stop_timer()``
 
@@ -217,7 +219,8 @@ Classes
   - format_object (callable, default: repr.repr): function formatting an object
 
 
-* DisplayTop(count: int, file=sys.stdout): Displaying to top N of the biggest allocation.
+* DisplayTop(count: int, file=sys.stdout): Display the list of the N biggest
+  memory allocations.
   Methods:
 
   - display(): display the top
@@ -246,9 +249,9 @@ Classes
   Methods:
 
   - create(user_data_callback=None): take a snapshot. If user_data_callback
-    is specified, it must be a callback returning a list of
+    is specified, it must be a callable object returning a list of
     (title: str, format: str, value: int). format must be "size". The list
-    must always have the same size and the same order to be able to compute
+    must always have the same length and the same order to be able to compute
     differences between values.
     Example: [('Video memory', 'size', 234902)].
   - filter_filenames(patterns: str|list, include: bool): remove filenames not
