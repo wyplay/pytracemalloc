@@ -234,7 +234,7 @@ class DisplayTop:
             parts.append("size=%s" % text)
         if self.show_count and (trace[3] or trace[2]):
             text = "count=%s" % trace[3]
-            if trace[2] is not None:
+            if show_diff:
                 text += " (%+i)" % trace[2]
             parts.append(text)
         if (self.show_average
