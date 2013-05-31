@@ -155,14 +155,14 @@ Python 3 uses free lists for the following object types:
 
 * float
 * tuple, list, set, dict
-* binded method, C function
+* bound method, C function
 * frame
 
 Python 2 uses free lists for the following object types:
 
 * int, float, unicode
 * tuple, list, set, dict
-* binded method, C function
+* bound method, C function
 * frame
 
 
