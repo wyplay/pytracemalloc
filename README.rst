@@ -322,7 +322,7 @@ Classes
 Changelog
 =========
 
-Version 0.9
+Version 0.9 (2013-05-31)
 
 - Tracking free lists is now the recommended method to patch Python
 - Fix code tracking Python free lists and python2.7_track_free_list.patch
