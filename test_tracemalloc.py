@@ -94,11 +94,10 @@ class TestTracemalloc(unittest.TestCase):
     def test_free_lists(self):
         data = None
 
-        # FIXME: test more types: float, binded method, C function
-
         if sys.version_info < (3,):
             # Python 2.x
             test_types = (int, unicode, tuple, list, dict, set)
+            # FIXME: test more types: float, binded method, C function
         else:
             # Python 3.x
             test_types = (tuple, list, dict, set)

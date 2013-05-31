@@ -3,7 +3,7 @@
 #include "frameobject.h"
 #include "pythread.h"
 
-#define VERSION "0.8.2"
+#define VERSION "0.9"
 
 #if PY_MAJOR_VERSION >= 3
 # define PYTHON3

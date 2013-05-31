@@ -118,38 +118,52 @@ Patch Python
 To install pytracemalloc, uou need a modified Python runtime:
 
 * Download Python source code
-* Apply python2.5.6.patch, python2.7.patch or python3.4.patch depending
-  on your Python version: patch -p1 < pythonXXX.patch
-
-  - Python 2.5.6: python2.5.6.patch
-  - Python 2.7: python2.7.patch
-  - Python 3.4: python3.4.patch
-
+* Apply a patch (see below):
+  patch -p1 < pythonXXX.patch
 * Compile and install Python:
   ./configure && make && sudo make install
 * It can be installed in a custom directory. For example:
   ./configure --prefix=/opt/mypython
 
-Using these patches, pytracemalloc is unable to track creation of new objects
-using free lists:
+There are 3 types of Python patch to use pytracemalloc:
+
+* Track free lists: track all Python objects. Recommended method: fast and
+  accurate.
+
+  - Python 2.5.2: python2.5.2_track_free_list.patch
+  - Python 2.7: python2.7_track_free_list.patch
+  - Python 3.4: python3.4_track_free_list.patch
+
+* Don't track free lists: less accurate, lower performance overhead
+
+  - Python 2.5.6: python2.5.6.patch
+  - Python 2.7: python2.7.patch
+  - Python 3.4: python3.4.patch
+
+* Disable free lists: track all Python objects, higher performance overhead
+
+  - Python 2.5: python2.5_no_free_list.patch
+  - Python 2.7: python2.7_no_free_list.patch
+
+Python uses "free lists" to avoid memory allocations for best performances.
+When an object is destroyed, the memory is not freed, but kept in a list.
+Creation of an object will try to reuse a dead object from the free list.
+A free list is specific to an object type, or sometimes also to the length
+of the object (for lists for example).
+
+Python 3 uses free lists for the following object types:
+
+* float
+* tuple, list, set, dict
+* binded method, C function
+* frame
+
+Python 2 uses free lists for the following object types:
 
 * int, float, unicode
 * tuple, list, set, dict
 * binded method, C function
 * frame
-
-To track also free lists, you may try the following patches depending on your
-Python version:
-
-* Python 2.5.2: python2.5.2_track_free_list.patch
-* Python 2.7: python2.7_track_free_list.patch
-* Python 3.4: python3.4_track_free_list.patch
-
-Or you can disable completly usage of free lists using the following patches,
-which make Python much slower:
-
-* python2.5_no_free_list.patch
-* python2.7_no_free_list.patch
 
 
 Compile and install pytracemalloc
@@ -308,9 +322,11 @@ Classes
 Changelog
 =========
 
-Version 0.8.2
+Version 0.9
 
+- Tracking free lists is now the recommended method to patch Python
 - Fix code tracking Python free lists and python2.7_track_free_list.patch
+- Add patches tracking free lists for Python 2.5.2 and 3.4.
 
 Version 0.8.1 (2013-03-23)
 
