@@ -5,8 +5,13 @@ include TODO
 
 include Makefile
 
-include python2.5.patch
+include python2.5.2_track_free_list.patch
+include python2.5.6.patch
+include python2.5_no_free_list.patch
+include python2.7_no_free_list.patch
 include python2.7.patch
+include python2.7_track_free_list.patch
 include python3.4.patch
+include python3.4_track_free_list.patch
 
 include test_tracemalloc.py

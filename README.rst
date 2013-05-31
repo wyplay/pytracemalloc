@@ -112,13 +112,23 @@ It is also possible to take a snapshot explicitly::
 Installation
 ============
 
-You need a modified Python runtime:
+Patch Python
+------------
+
+To install pytracemalloc, uou need a modified Python runtime:
 
 * Download Python source code
 * Apply python2.5.6.patch, python2.7.patch or python3.4.patch depending
-  on your Python version
-* Compile and install Python
-* It can be installed in a custom directory
+  on your Python version: patch -p1 < pythonXXX.patch
+
+  - Python 2.5.6: python2.5.6.patch
+  - Python 2.7: python2.7.patch
+  - Python 3.4: python3.4.patch
+
+* Compile and install Python:
+  ./configure && make && sudo make install
+* It can be installed in a custom directory. For example:
+  ./configure --prefix=/opt/mypython
 
 Using these patches, pytracemalloc is unable to track creation of new objects
 using free lists:
@@ -128,24 +138,34 @@ using free lists:
 * binded method, C function
 * frame
 
-To track creation of all instrances, you may want to try experimental patches:
+To track also free lists, you may try the following patches depending on your
+Python version:
 
-* python2.7_track_free_list.patch: add an hook to be track usage of free lists.
-  Python is a slower with this patch, but tracemalloc is able to track all
-  Python objects.
-* Disable completly free lists: python2.5_no_free_list.patch and
-  python2.7_no_free_list.patch. Python is much slower using these patches.
+* Python 2.5.2: python2.5.2_track_free_list.patch
+* Python 2.7: python2.7_track_free_list.patch
+* Python 3.4: python3.4_track_free_list.patch
+
+Or you can disable completly usage of free lists using the following patches,
+which make Python much slower:
+
+* python2.5_no_free_list.patch
+* python2.7_no_free_list.patch
+
+
+Compile and install pytracemalloc
+---------------------------------
 
 Dependencies:
 
 * `Python <http://www.python.org>`_ 2.5 - 3.4
 * `glib <http://www.gtk.org>`_ version 2
 * (optional) `psutil <https://pypi.python.org/pypi/psutil>`_ to get the
-  process memory
+  process memory. pytracemalloc is able to read the memory usage of the process
+  on Linux without psutil.
 
 Install::
 
-    python setup.py install
+    /opt/mypython/usr/bin/python setup.py install
 
 
 API

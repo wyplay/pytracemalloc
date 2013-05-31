@@ -1,0 +1,830 @@
+diff -r 0a1fb977c7bf Include/objimpl.h
+--- a/Include/objimpl.h	Fri May 31 11:14:58 2013 +0200
++++ b/Include/objimpl.h	Fri May 31 11:15:48 2013 +0200
+@@ -98,38 +98,31 @@ PyAPI_FUNC(void *) PyObject_Malloc(size_
+ PyAPI_FUNC(void *) PyObject_Realloc(void *, size_t);
+ PyAPI_FUNC(void) PyObject_Free(void *);
+ 
++PyAPI_FUNC(int) _PyFreeList_SetAllocators(
++    void (*alloc) (PyObject *),
++    void (*free) (PyObject *)
++);
++
++PyAPI_FUNC(void) _PyFreeList_Alloc(void *);
++PyAPI_FUNC(void) _PyFreeList_Free(void *);
++
+ 
+ /* Macros */
+-#ifdef WITH_PYMALLOC
+-#ifdef PYMALLOC_DEBUG	/* WITH_PYMALLOC && PYMALLOC_DEBUG */
++#if defined(WITH_PYMALLOC) && defined(PYMALLOC_DEBUG)
+ PyAPI_FUNC(void *) _PyObject_DebugMalloc(size_t nbytes);
+ PyAPI_FUNC(void *) _PyObject_DebugRealloc(void *p, size_t nbytes);
+ PyAPI_FUNC(void) _PyObject_DebugFree(void *p);
+ PyAPI_FUNC(void) _PyObject_DebugDumpAddress(const void *p);
+ PyAPI_FUNC(void) _PyObject_DebugCheckAddress(const void *p);
+ PyAPI_FUNC(void) _PyObject_DebugMallocStats(void);
+-#define PyObject_MALLOC		_PyObject_DebugMalloc
+-#define PyObject_Malloc		_PyObject_DebugMalloc
+-#define PyObject_REALLOC	_PyObject_DebugRealloc
+-#define PyObject_Realloc	_PyObject_DebugRealloc
+-#define PyObject_FREE		_PyObject_DebugFree
+-#define PyObject_Free		_PyObject_DebugFree
+-
+-#else	/* WITH_PYMALLOC && ! PYMALLOC_DEBUG */
+-#define PyObject_MALLOC		PyObject_Malloc
+-#define PyObject_REALLOC	PyObject_Realloc
+-#define PyObject_FREE		PyObject_Free
+ #endif
+ 
+-#else	/* ! WITH_PYMALLOC */
+-#define PyObject_MALLOC		PyMem_MALLOC
+-#define PyObject_REALLOC	PyMem_REALLOC
+-#define PyObject_FREE		PyMem_FREE
+-
+-#endif	/* WITH_PYMALLOC */
+-
+-#define PyObject_Del		PyObject_Free
+-#define PyObject_DEL		PyObject_FREE
++/* Macros */
++#define PyObject_MALLOC         PyObject_Malloc
++#define PyObject_REALLOC        PyObject_Realloc
++#define PyObject_FREE           PyObject_Free
++#define PyObject_Del            PyObject_Free
++#define PyObject_DEL            PyObject_Free
+ 
+ /* for source compatibility with 2.2 */
+ #define _PyObject_Del		PyObject_Free
+diff -r 0a1fb977c7bf Include/pymem.h
+--- a/Include/pymem.h	Fri May 31 11:14:58 2013 +0200
++++ b/Include/pymem.h	Fri May 31 11:15:48 2013 +0200
+@@ -47,6 +47,24 @@ extern "C" {
+    performed on failure (no exception is set, no warning is printed, etc).
+ */
+ 
++#define PY_ALLOC_SYSTEM_API 's'   /* the system API (malloc, realloc, free) */
++#define PY_ALLOC_MEM_API 'm'      /* the PyMem_Malloc() API */
++#define PY_ALLOC_OBJECT_API 'o'   /* The PyObject_Malloc() API */
++
++PyAPI_FUNC(int) Py_GetAllocators(
++    char api,
++    void* (**malloc_p) (size_t),
++    void* (**realloc_p) (void*, size_t),
++    void (**free_p) (void*)
++    );
++
++PyAPI_FUNC(int) Py_SetAllocators(
++    char api,
++    void* (*malloc) (size_t),
++    void* (*realloc) (void*, size_t),
++    void (*free) (void*)
++    );
++
+ PyAPI_FUNC(void *) PyMem_Malloc(size_t);
+ PyAPI_FUNC(void *) PyMem_Realloc(void *, size_t);
+ PyAPI_FUNC(void) PyMem_Free(void *);
+@@ -55,23 +73,14 @@ PyAPI_FUNC(void) PyMem_Free(void *);
+    no longer supported. They used to call PyErr_NoMemory() on failure. */
+ 
+ /* Macros. */
+-#ifdef PYMALLOC_DEBUG
+-/* Redirect all memory operations to Python's debugging allocator. */
+-#define PyMem_MALLOC		PyObject_MALLOC
+-#define PyMem_REALLOC		PyObject_REALLOC
+-#define PyMem_FREE		PyObject_FREE
+-
+-#else	/* ! PYMALLOC_DEBUG */
+ 
+ /* PyMem_MALLOC(0) means malloc(1). Some systems would return NULL
+    for malloc(0), which would be treated as an error. Some platforms
+    would return a pointer with no memory behind it, which would break
+    pymalloc. To solve these problems, allocate an extra byte. */
+-#define PyMem_MALLOC(n)         malloc((n) ? (n) : 1)
+-#define PyMem_REALLOC(p, n)     realloc((p), (n) ? (n) : 1)
+-#define PyMem_FREE		free
+-
+-#endif	/* PYMALLOC_DEBUG */
++#define PyMem_MALLOC(n)		PyMem_Malloc(n)
++#define PyMem_REALLOC(p, n)	PyMem_Realloc(p, n)
++#define PyMem_FREE(p)		PyMem_Free(p)
+ 
+ /*
+  * Type-oriented memory interface
+diff -r 0a1fb977c7bf Objects/classobject.c
+--- a/Objects/classobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/classobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -2185,6 +2185,7 @@ PyMethod_New(PyObject *func, PyObject *s
+ 	if (im != NULL) {
+ 		free_list = (PyMethodObject *)(im->im_self);
+ 		PyObject_INIT(im, &PyMethod_Type);
++		_PyFreeList_Alloc(im);
+ 	}
+ 	else {
+ 		im = PyObject_GC_New(PyMethodObject, &PyMethod_Type);
+@@ -2304,6 +2305,7 @@ instancemethod_new(PyTypeObject* type, P
+ static void
+ instancemethod_dealloc(register PyMethodObject *im)
+ {
++	_PyFreeList_Free(im);
+ 	_PyObject_GC_UNTRACK(im);
+ 	if (im->im_weakreflist != NULL)
+ 		PyObject_ClearWeakRefs((PyObject *)im);
+diff -r 0a1fb977c7bf Objects/dictobject.c
+--- a/Objects/dictobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/dictobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -209,6 +209,7 @@ PyDict_New(void)
+ 		if (mp->ma_fill) {
+ 			EMPTY_TO_MINSIZE(mp);
+ 		}
++		_PyFreeList_Alloc(mp);
+ 		assert (mp->ma_used == 0);
+ 		assert (mp->ma_table == mp->ma_smalltable);
+ 		assert (mp->ma_mask == PyDict_MINSIZE - 1);
+@@ -853,9 +854,10 @@ dict_dealloc(register dictobject *mp)
+ 	}
+ 	if (mp->ma_table != mp->ma_smalltable)
+ 		PyMem_DEL(mp->ma_table);
+-	if (num_free_dicts < MAXFREEDICTS && mp->ob_type == &PyDict_Type)
++	if (num_free_dicts < MAXFREEDICTS && mp->ob_type == &PyDict_Type) {
++		_PyFreeList_Free(mp);
+ 		free_dicts[num_free_dicts++] = mp;
+-	else
++	} else
+ 		mp->ob_type->tp_free((PyObject *)mp);
+ 	Py_TRASHCAN_SAFE_END(mp)
+ }
+diff -r 0a1fb977c7bf Objects/floatobject.c
+--- a/Objects/floatobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/floatobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -58,6 +58,7 @@ PyFloat_FromDouble(double fval)
+ 	op = free_list;
+ 	free_list = (PyFloatObject *)op->ob_type;
+ 	PyObject_INIT(op, &PyFloat_Type);
++	_PyFreeList_Alloc(op);
+ 	op->ob_fval = fval;
+ 	return (PyObject *) op;
+ }
+@@ -175,6 +176,7 @@ static void
+ float_dealloc(PyFloatObject *op)
+ {
+ 	if (PyFloat_CheckExact(op)) {
++		_PyFreeList_Free(op);
+ 		op->ob_type = (struct _typeobject *)free_list;
+ 		free_list = op;
+ 	}
+diff -r 0a1fb977c7bf Objects/frameobject.c
+--- a/Objects/frameobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/frameobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -434,6 +434,7 @@ frame_dealloc(PyFrameObject *f)
+         if (co->co_zombieframe == NULL)
+                 co->co_zombieframe = f;
+ 	else if (numfree < MAXFREELIST) {
++		_PyFreeList_Free(f);
+ 		++numfree;
+ 		f->f_back = free_list;
+ 		free_list = f;
+@@ -631,6 +632,7 @@ PyFrame_New(PyThreadState *tstate, PyCod
+                             }
+                     }
+                     _Py_NewReference((PyObject *)f);
++                    _PyFreeList_Alloc(f);
+                 }
+ 
+ 		f->f_code = code;
+diff -r 0a1fb977c7bf Objects/intobject.c
+--- a/Objects/intobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/intobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -104,6 +104,7 @@ PyInt_FromLong(long ival)
+ 	v = free_list;
+ 	free_list = (PyIntObject *)v->ob_type;
+ 	PyObject_INIT(v, &PyInt_Type);
++	_PyFreeList_Alloc(v);
+ 	v->ob_ival = ival;
+ 	return (PyObject *) v;
+ }
+@@ -128,6 +129,7 @@ static void
+ int_dealloc(PyIntObject *v)
+ {
+ 	if (PyInt_CheckExact(v)) {
++		_PyFreeList_Free(v);
+ 		v->ob_type = (struct _typeobject *)free_list;
+ 		free_list = v;
+ 	}
+@@ -1172,6 +1174,7 @@ int
+ 		v = free_list;
+ 		free_list = (PyIntObject *)v->ob_type;
+ 		PyObject_INIT(v, &PyInt_Type);
++		_PyFreeList_Alloc(v);
+ 		v->ob_ival = ival;
+ 		small_ints[ival + NSMALLNEGINTS] = v;
+ 	}
+diff -r 0a1fb977c7bf Objects/listobject.c
+--- a/Objects/listobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/listobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -109,6 +109,7 @@ PyList_New(Py_ssize_t size)
+ 		num_free_lists--;
+ 		op = free_lists[num_free_lists];
+ 		_Py_NewReference((PyObject *)op);
++		_PyFreeList_Alloc(op);
+ 	} else {
+ 		op = PyObject_GC_New(PyListObject, &PyList_Type);
+ 		if (op == NULL)
+@@ -275,9 +276,10 @@ list_dealloc(PyListObject *op)
+ 		}
+ 		PyMem_FREE(op->ob_item);
+ 	}
+-	if (num_free_lists < MAXFREELISTS && PyList_CheckExact(op))
++	if (num_free_lists < MAXFREELISTS && PyList_CheckExact(op)) {
++		_PyFreeList_Free(op);
+ 		free_lists[num_free_lists++] = op;
+-	else
++	} else
+ 		op->ob_type->tp_free((PyObject *)op);
+ 	Py_TRASHCAN_SAFE_END(op)
+ }
+diff -r 0a1fb977c7bf Objects/methodobject.c
+--- a/Objects/methodobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/methodobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -14,6 +14,7 @@ PyCFunction_NewEx(PyMethodDef *ml, PyObj
+ 	if (op != NULL) {
+ 		free_list = (PyCFunctionObject *)(op->m_self);
+ 		PyObject_INIT(op, &PyCFunction_Type);
++		_PyFreeList_Alloc(op);
+ 	}
+ 	else {
+ 		op = PyObject_GC_New(PyCFunctionObject, &PyCFunction_Type);
+@@ -122,6 +123,7 @@ PyCFunction_Call(PyObject *func, PyObjec
+ static void
+ meth_dealloc(PyCFunctionObject *m)
+ {
++	_PyFreeList_Free(m);
+ 	_PyObject_GC_UNTRACK(m);
+ 	Py_XDECREF(m->m_self);
+ 	Py_XDECREF(m->m_module);
+diff -r 0a1fb977c7bf Objects/object.c
+--- a/Objects/object.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/object.c	Fri May 31 11:15:48 2013 +0200
+@@ -2002,27 +2002,6 @@ PyTypeObject *_Py_cobject_hack = &PyCObj
+ Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
+ 
+ 
+-/* Python's malloc wrappers (see pymem.h) */
+-
+-void *
+-PyMem_Malloc(size_t nbytes)
+-{
+-	return PyMem_MALLOC(nbytes);
+-}
+-
+-void *
+-PyMem_Realloc(void *p, size_t nbytes)
+-{
+-	return PyMem_REALLOC(p, nbytes);
+-}
+-
+-void
+-PyMem_Free(void *p)
+-{
+-	PyMem_FREE(p);
+-}
+-
+-
+ /* These methods are used to control infinite recursion in repr, str, print,
+    etc.  Container objects that may recursively contain themselves,
+    e.g. builtin dictionaries and lists, should used Py_ReprEnter() and
+diff -r 0a1fb977c7bf Objects/obmalloc.c
+--- a/Objects/obmalloc.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/obmalloc.c	Fri May 31 11:15:48 2013 +0200
+@@ -1,5 +1,198 @@
+ #include "Python.h"
+ 
++/* Python's malloc wrappers (see pymem.h) */
++
++static struct {
++	int init;
++	int use_pymalloc;
++
++	void* (*system_malloc) (size_t);
++	void* (*system_realloc) (void*, size_t);
++	void (*system_free) (void*);
++
++	void* (*mem_malloc) (size_t);
++	void* (*mem_realloc) (void*, size_t);
++	void (*mem_free) (void*);
++
++	void* (*object_malloc) (size_t);
++	void* (*object_realloc) (void*, size_t);
++	void (*object_free) (void*);
++
++    void (*free_list_alloc) (PyObject *);
++    void (*free_list_free) (PyObject *);
++} _PyMem_Allocators = {
++    0, 1,
++    NULL, NULL, NULL,
++    NULL, NULL, NULL,
++    NULL, NULL, NULL,
++    NULL, NULL};
++
++/* Forward declaration */
++static void* _PyObject_Malloc(size_t nbytes);
++static void _PyObject_Free(void *p);
++static void* _PyObject_Realloc(void *p, size_t nbytes);
++
++#ifndef PYMALLOC_DEBUG
++static void *
++_PyMem_Malloc(size_t nbytes)
++{
++	return _PyMem_Allocators.system_malloc(nbytes);
++}
++
++static void *
++_PyMem_Realloc(void *p, size_t nbytes)
++{
++	return _PyMem_Allocators.system_realloc(p, nbytes);
++}
++
++static void
++_PyMem_Free(void *p)
++{
++	_PyMem_Allocators.system_free(p);
++}
++#endif
++
++static void
++_PyMem_InitSystemAllocators(void)
++{
++	_PyMem_Allocators.init = 1;
++	_PyMem_Allocators.use_pymalloc = 1;
++
++	_PyMem_Allocators.system_malloc = malloc;
++	_PyMem_Allocators.system_realloc = realloc;
++	_PyMem_Allocators.system_free = free;
++
++#if defined(PYMALLOC_DEBUG)
++	_PyMem_Allocators.mem_malloc = _PyObject_DebugMalloc;
++	_PyMem_Allocators.mem_realloc = _PyObject_DebugRealloc;
++	_PyMem_Allocators.mem_free = _PyObject_DebugFree;
++#else
++	_PyMem_Allocators.mem_malloc = _PyMem_Malloc;
++	_PyMem_Allocators.mem_realloc = _PyMem_Realloc;
++	_PyMem_Allocators.mem_free = _PyMem_Free;
++#endif
++
++#ifndef WITH_PYMALLOC
++	/* pymalloc not enabled:  Redirect the entry points to malloc */
++	_PyMem_Allocators.object_malloc = PyMem_Malloc;
++	_PyMem_Allocators.object_free = PyMem_Free;
++	_PyMem_Allocators.object_realloc = PyMem_Realloc;
++#elif defined(PYMALLOC_DEBUG)   /* WITH_PYMALLOC && PYMALLOC_DEBUG */
++	_PyMem_Allocators.object_malloc = _PyObject_DebugMalloc;
++	_PyMem_Allocators.object_free = _PyObject_DebugFree;
++	_PyMem_Allocators.object_realloc = _PyObject_DebugRealloc;
++#else
++	_PyMem_Allocators.object_malloc = _PyObject_Malloc;
++	_PyMem_Allocators.object_free = _PyObject_Free;
++	_PyMem_Allocators.object_realloc = _PyObject_Realloc;
++#endif
++
++    _PyMem_Allocators.free_list_alloc = NULL;
++    _PyMem_Allocators.free_list_free = NULL;
++}
++
++#define _PyMem_InitAllocators()                    \
++    do {                                           \
++        if (!_PyMem_Allocators.init)               \
++            _PyMem_InitSystemAllocators();         \
++    } while (0)
++
++int Py_GetAllocators(
++    char api,
++    void* (**malloc_p) (size_t),
++    void* (**realloc_p) (void*, size_t),
++    void (**free_p) (void*)
++    )
++{
++	_PyMem_InitAllocators();
++
++	if (api == PY_ALLOC_SYSTEM_API) {
++		*malloc_p = _PyMem_Allocators.system_malloc;
++		*realloc_p = _PyMem_Allocators.system_realloc;
++		*free_p = _PyMem_Allocators.system_free;
++	}
++	else if (api == PY_ALLOC_MEM_API) {
++		*malloc_p = _PyMem_Allocators.mem_malloc;
++		*realloc_p = _PyMem_Allocators.mem_realloc;
++		*free_p = _PyMem_Allocators.mem_free;
++	}
++	else if (api == PY_ALLOC_OBJECT_API) {
++		*malloc_p = _PyMem_Allocators.object_malloc;
++		*realloc_p = _PyMem_Allocators.object_realloc;
++		*free_p = _PyMem_Allocators.object_free;
++	}
++	else {
++		*malloc_p = NULL;
++		*realloc_p = NULL;
++		*free_p = NULL;
++		return -1;
++	}
++	return 0;
++}
++
++int Py_SetAllocators(
++    char api,
++    void* (*user_malloc) (size_t),
++    void* (*user_realloc) (void*, size_t),
++    void (*user_free) (void*)
++    )
++{
++	_PyMem_InitAllocators();
++
++	if (api == PY_ALLOC_SYSTEM_API) {
++		_PyMem_Allocators.system_malloc = user_malloc;
++		_PyMem_Allocators.system_realloc = user_realloc;
++		_PyMem_Allocators.system_free = user_free;
++	}
++	else if (api == PY_ALLOC_MEM_API) {
++		_PyMem_Allocators.mem_malloc = user_malloc;
++		_PyMem_Allocators.mem_realloc = user_realloc;
++		_PyMem_Allocators.mem_free = user_free;
++	}
++	else if (api == PY_ALLOC_OBJECT_API) {
++		_PyMem_Allocators.object_malloc = user_malloc;
++		_PyMem_Allocators.object_realloc = user_realloc;
++		_PyMem_Allocators.object_free = user_free;
++	}
++	else {
++		return -1;
++	}
++	return 0;
++}
++
++void *
++PyMem_Malloc(size_t nbytes)
++{
++	_PyMem_InitAllocators();
++
++	if (nbytes > (size_t)PY_SSIZE_T_MAX)
++		return NULL;
++	if (nbytes == 0)
++		nbytes = 1;
++
++	return _PyMem_Allocators.mem_malloc(nbytes);
++}
++
++void *
++PyMem_Realloc(void *p, size_t nbytes)
++{
++	_PyMem_InitAllocators();
++
++	if (nbytes > (size_t)PY_SSIZE_T_MAX)
++		return NULL;
++	if (nbytes == 0)
++		nbytes = 1;
++
++	return _PyMem_Allocators.mem_realloc(p, nbytes);
++}
++
++void
++PyMem_Free(void *p)
++{
++	_PyMem_InitAllocators();
++	_PyMem_Allocators.mem_free(p);
++}
++
+ #ifdef WITH_PYMALLOC
+ 
+ /* An object allocator for Python.
+@@ -529,7 +722,7 @@ new_arena(void)
+ 		if (numarenas > PY_SIZE_MAX / sizeof(*arenas))
+ 			return NULL;	/* overflow */
+ 		nbytes = numarenas * sizeof(*arenas);
+-		arenaobj = (struct arena_object *)realloc(arenas, nbytes);
++		arenaobj = (struct arena_object *)_PyMem_Allocators.system_realloc(arenas, nbytes);
+ 		if (arenaobj == NULL)
+ 			return NULL;
+ 		arenas = arenaobj;
+@@ -560,7 +753,7 @@ new_arena(void)
+ 	arenaobj = unused_arena_objects;
+ 	unused_arena_objects = arenaobj->nextarena;
+ 	assert(arenaobj->address == 0);
+-	arenaobj->address = (uptr)malloc(ARENA_SIZE);
++	arenaobj->address = (uptr)_PyMem_Allocators.system_malloc(ARENA_SIZE);
+ 	if (arenaobj->address == 0) {
+ 		/* The allocation failed: return NULL after putting the
+ 		 * arenaobj back.
+@@ -717,15 +910,17 @@ int Py_ADDRESS_IN_RANGE(void *P, poolp p
+  * Unless the optimizer reorders everything, being too smart...
+  */
+ 
+-#undef PyObject_Malloc
+-void *
+-PyObject_Malloc(size_t nbytes)
++static void *
++_PyObject_Malloc(size_t nbytes)
+ {
+ 	block *bp;
+ 	poolp pool;
+ 	poolp next;
+ 	uint size;
+ 
++	if (!_PyMem_Allocators.use_pymalloc)
++		return _PyMem_Allocators.system_malloc(nbytes);
++
+ 	/*
+ 	 * This implicitly redirects malloc(0).
+ 	 */
+@@ -899,14 +1094,13 @@ redirect:
+ 	 */
+ 	if (nbytes == 0)
+ 		nbytes = 1;
+-	return (void *)malloc(nbytes);
++	return (void *)_PyMem_Allocators.system_malloc(nbytes);
+ }
+ 
+ /* free */
+ 
+-#undef PyObject_Free
+-void
+-PyObject_Free(void *p)
++static void
++_PyObject_Free(void *p)
+ {
+ 	poolp pool;
+ 	block *lastfree;
+@@ -1005,7 +1199,7 @@ PyObject_Free(void *p)
+ 				unused_arena_objects = ao;
+ 
+ 				/* Free the entire arena. */
+-				free((void *)ao->address);
++				_PyMem_Allocators.system_free((void *)ao->address);
+ 				ao->address = 0;	/* mark unassociated */
+ 				--narenas_currently_allocated;
+ 
+@@ -1111,7 +1305,7 @@ PyObject_Free(void *p)
+ 	}
+ 
+ 	/* We didn't allocate this address. */
+-	free(p);
++	_PyMem_Allocators.system_free(p);
+ }
+ 
+ /* realloc.  If p is NULL, this acts like malloc(nbytes).  Else if nbytes==0,
+@@ -1119,16 +1313,15 @@ PyObject_Free(void *p)
+  * return a non-NULL result.
+  */
+ 
+-#undef PyObject_Realloc
+-void *
+-PyObject_Realloc(void *p, size_t nbytes)
++static void *
++_PyObject_Realloc(void *p, size_t nbytes)
+ {
+ 	void *bp;
+ 	poolp pool;
+ 	size_t size;
+ 
+ 	if (p == NULL)
+-		return PyObject_Malloc(nbytes);
++		return _PyObject_Malloc(nbytes);
+ 
+ 	pool = POOL_ADDR(p);
+ 	if (Py_ADDRESS_IN_RANGE(p, pool)) {
+@@ -1150,10 +1343,10 @@ PyObject_Realloc(void *p, size_t nbytes)
+ 			}
+ 			size = nbytes;
+ 		}
+-		bp = PyObject_Malloc(nbytes);
++		bp = _PyObject_Malloc(nbytes);
+ 		if (bp != NULL) {
+ 			memcpy(bp, p, size);
+-			PyObject_Free(p);
++			_PyObject_Free(p);
+ 		}
+ 		return bp;
+ 	}
+@@ -1168,41 +1361,69 @@ PyObject_Realloc(void *p, size_t nbytes)
+ 	 * at p.  Instead we punt:  let C continue to manage this block.
+          */
+ 	if (nbytes)
+-		return realloc(p, nbytes);
++		return _PyMem_Allocators.system_realloc(p, nbytes);
+ 	/* C doesn't define the result of realloc(p, 0) (it may or may not
+ 	 * return NULL then), but Python's docs promise that nbytes==0 never
+ 	 * returns NULL.  We don't pass 0 to realloc(), to avoid that endcase
+ 	 * to begin with.  Even then, we can't be sure that realloc() won't
+ 	 * return NULL.
+ 	 */
+-	bp = realloc(p, 1);
++	bp = _PyMem_Allocators.system_realloc(p, 1);
+    	return bp ? bp : p;
+ }
+ 
+-#else	/* ! WITH_PYMALLOC */
+-
+-/*==========================================================================*/
+-/* pymalloc not enabled:  Redirect the entry points to malloc.  These will
+- * only be used by extensions that are compiled with pymalloc enabled. */
++#endif /* WITH_PYMALLOC */
+ 
+ void *
+-PyObject_Malloc(size_t n)
++PyObject_Malloc(size_t nbytes)
+ {
+-	return PyMem_MALLOC(n);
+-}
+-
+-void *
+-PyObject_Realloc(void *p, size_t n)
+-{
+-	return PyMem_REALLOC(p, n);
++	_PyMem_InitAllocators();
++	return _PyMem_Allocators.object_malloc(nbytes);
+ }
+ 
+ void
+ PyObject_Free(void *p)
+ {
+-	PyMem_FREE(p);
++	_PyMem_InitAllocators();
++	_PyMem_Allocators.object_free(p);
+ }
+-#endif /* WITH_PYMALLOC */
++
++void *
++PyObject_Realloc(void *p, size_t nbytes)
++{
++	_PyMem_InitAllocators();
++	return _PyMem_Allocators.object_realloc(p, nbytes);
++}
++
++int _PyFreeList_SetAllocators(
++    void (*alloc) (PyObject *),
++    void (*free) (PyObject *))
++{
++    _PyMem_InitAllocators();
++    _PyMem_Allocators.free_list_alloc = alloc;
++    _PyMem_Allocators.free_list_free = free;
++    return 0;
++}
++
++void
++_PyFreeList_Alloc(void *o)
++{
++    _PyMem_InitAllocators();
++    if (_PyMem_Allocators.free_list_alloc) {
++        PyObject *op = (PyObject *)o;
++        _PyMem_Allocators.free_list_alloc(op);
++    }
++}
++
++void
++_PyFreeList_Free(void *o)
++{
++    _PyMem_InitAllocators();
++    if (_PyMem_Allocators.free_list_free) {
++        PyObject *op = (PyObject *)o;
++        _PyMem_Allocators.free_list_free(op);
++    }
++}
+ 
+ #ifdef PYMALLOC_DEBUG
+ /*==========================================================================*/
+@@ -1324,7 +1545,7 @@ void *
+ 		/* overflow:  can't represent total as a size_t */
+ 		return NULL;
+ 
+-	p = (uchar *)PyObject_Malloc(total);
++	p = (uchar *)_PyObject_Malloc(total);
+ 	if (p == NULL)
+ 		return NULL;
+ 
+@@ -1358,7 +1579,7 @@ void
+ 	nbytes = read_size_t(q);
+ 	if (nbytes > 0)
+ 		memset(q, DEADBYTE, nbytes);
+-	PyObject_Free(q);
++	_PyObject_Free(q);
+ }
+ 
+ void *
+@@ -1387,7 +1608,7 @@ void *
+ 	}
+ 
+ 	/* Resize and add decorations. */
+-	q = (uchar *)PyObject_Realloc(q - 2*SST, total);
++	q = (uchar *)_PyObject_Realloc(q - 2*SST, total);
+ 	if (q == NULL)
+ 		return NULL;
+ 
+diff -r 0a1fb977c7bf Objects/setobject.c
+--- a/Objects/setobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/setobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -558,9 +558,10 @@ set_dealloc(PySetObject *so)
+ 	}
+ 	if (so->table != so->smalltable)
+ 		PyMem_DEL(so->table);
+-	if (num_free_sets < MAXFREESETS && PyAnySet_CheckExact(so))
++	if (num_free_sets < MAXFREESETS && PyAnySet_CheckExact(so)) {
++		_PyFreeList_Free(so);
+ 		free_sets[num_free_sets++] = so;
+-	else 
++	} else 
+ 		so->ob_type->tp_free(so);
+ 	Py_TRASHCAN_SAFE_END(so)
+ }
+@@ -990,6 +991,7 @@ make_new_set(PyTypeObject *type, PyObjec
+ 		so->ob_type = type;
+ 		_Py_NewReference((PyObject *)so);
+ 		EMPTY_TO_MINSIZE(so);
++		_PyFreeList_Alloc(so);
+ 		PyObject_GC_Track(so);
+ 	} else {
+ 		so = (PySetObject *)type->tp_alloc(type, 0);
+diff -r 0a1fb977c7bf Objects/tupleobject.c
+--- a/Objects/tupleobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/tupleobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -53,6 +53,7 @@ PyTuple_New(register Py_ssize_t size)
+ 		op->ob_type = &PyTuple_Type;
+ #endif
+ 		_Py_NewReference((PyObject *)op);
++		_PyFreeList_Alloc(op);
+ 	}
+ 	else
+ #endif
+@@ -172,6 +173,7 @@ tupledealloc(register PyTupleObject *op)
+ 		    num_free_tuples[len] < MAXSAVEDTUPLES &&
+ 		    op->ob_type == &PyTuple_Type)
+ 		{
++			_PyFreeList_Free(op);
+ 			op->ob_item[0] = (PyObject *) free_tuples[len];
+ 			num_free_tuples[len]++;
+ 			free_tuples[len] = op;
+diff -r 0a1fb977c7bf Objects/unicodeobject.c
+--- a/Objects/unicodeobject.c	Fri May 31 11:14:58 2013 +0200
++++ b/Objects/unicodeobject.c	Fri May 31 11:15:48 2013 +0200
+@@ -257,6 +257,7 @@ PyUnicodeObject *_PyUnicode_New(Py_ssize
+ 	    unicode->str = PyMem_NEW(Py_UNICODE, length + 1);
+         }
+         PyObject_INIT(unicode, &PyUnicode_Type);
++        _PyFreeList_Alloc(unicode);
+     }
+     else {
+         unicode = PyObject_New(PyUnicodeObject, &PyUnicode_Type);
+@@ -295,6 +296,7 @@ void unicode_dealloc(register PyUnicodeO
+     if (PyUnicode_CheckExact(unicode) &&
+ 	unicode_freelist_size < MAX_UNICODE_FREELIST_SIZE) {
+         /* Keep-Alive optimization */
++	_PyFreeList_Free(unicode);
+ 	if (unicode->length >= KEEPALIVE_SIZE_LIMIT) {
+ 	    PyMem_DEL(unicode->str);
+ 	    unicode->str = NULL;
+diff -r 0a1fb977c7bf Python/pythonrun.c
+--- a/Python/pythonrun.c	Fri May 31 11:14:58 2013 +0200
++++ b/Python/pythonrun.c	Fri May 31 11:15:48 2013 +0200
+@@ -148,6 +148,36 @@ add_flag(int flag, const char *envs)
+ 	return flag;
+ }
+ 
++static void
++inittracemalloc(void)
++{
++    PyObject *mod = NULL, *enable = NULL, *res = NULL;
++
++    mod = PyImport_ImportModule("_tracemalloc");
++    if (mod == NULL)
++        goto error;
++
++    enable = PyObject_GetAttrString(mod, "enable");
++    if (enable == NULL)
++        goto error;
++
++    res = PyObject_CallFunction(enable, NULL);
++    if (res == NULL)
++        goto error;
++
++    fprintf(stderr, "tracemalloc enabled\n");
++    goto done;
++
++error:
++    fprintf(stderr, "failed to enable tracemalloc:\n");
++    PyErr_Print();
++
++done:
++    Py_XDECREF(mod);
++    Py_XDECREF(enable);
++    Py_XDECREF(res);
++}
++
+ void
+ Py_InitializeEx(int install_sigs)
+ {
+@@ -238,6 +268,9 @@ Py_InitializeEx(int install_sigs)
+ 	if (install_sigs)
+ 		initsigs(); /* Signal handling stuff, including initintr() */
+ 
++	if ((p = Py_GETENV("PYTRACEMALLOC")) && *p != '\0')
++		inittracemalloc();
++
+ 	initmain(); /* Module __main__ */
+ 	if (!Py_NoSiteFlag)
+ 		initsite(); /* Module site */
