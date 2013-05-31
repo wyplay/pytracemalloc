@@ -23,7 +23,7 @@ def _get_timestamp():
 
 def __format_size(size, sign=False):
     kb = size // 1024
-    if kb >= 10:
+    if abs(kb) >= 10:
         if sign:
             return "%+i KiB" % kb
         else:
