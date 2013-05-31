@@ -94,9 +94,16 @@ class TestTracemalloc(unittest.TestCase):
     def test_free_lists(self):
         data = None
 
-        # FIXME: test more types: float, set, binded method, C function
+        # FIXME: test more types: float, binded method, C function
 
-        for test_type in (int, unicode, tuple, list, dict):
+        if sys.version_info < (3,):
+            # Python 2.x
+            test_types = (int, unicode, tuple, list, dict, set)
+        else:
+            # Python 3.x
+            test_types = (tuple, list, dict, set)
+
+        for test_type in test_types:
             clear_stats()
 
             if test_type in (tuple, list):
@@ -111,9 +118,16 @@ class TestTracemalloc(unittest.TestCase):
 
             elif test_type == dict:
                 length = 1024
-                items = [(str(key), key) for key in xrange(length)]
+                items = [(str(key), key) for key in range(length)]
                 filename, lineno = get_source(1)
                 data = dict(items)
+                min_size = MIN_SIZE_PTR * length
+
+            elif test_type == set:
+                length = 1024
+                items = tuple(map(str, range(length)))
+                filename, lineno = get_source(1)
+                data = set(items)
                 min_size = MIN_SIZE_PTR * length
 
             elif test_type == unicode:
@@ -283,7 +297,13 @@ class TestTracemalloc(unittest.TestCase):
         self._test_display_uncollectable_cumulative(True)
 
     def test_version(self):
-        setup_py = imp.load_source('setup', 'setup.py')
+        filename = os.path.join(os.path.dirname(__file__), 'setup.py')
+        if sys.version_info >= (3, 4):
+            import importlib
+            loader = importlib.machinery.SourceFileLoader('setup', filename)
+            setup_py = loader.load_module()
+        else:
+            setup_py = imp.load_source('setup', filename)
         self.assertEqual(tracemalloc.__version__, setup_py.VERSION)
 
 
