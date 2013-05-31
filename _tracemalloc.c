@@ -808,13 +808,13 @@ static PyObject*
 py_trace_get_stats(PyObject *self)
 {
     int was_enabled;
+    trace_get_stats_t get_stats;
 
     /* don't track memory allocations done by trace_get_stats_fill_file()
      * to not modify hash tables */
     was_enabled = trace_config.enabled;
     trace_config.enabled = 0;
 
-    trace_get_stats_t get_stats;
     get_stats.file_dict = PyDict_New();
     if (get_stats.file_dict == NULL)
         goto done;
