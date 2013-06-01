@@ -346,7 +346,7 @@ Classes
 Changelog
 =========
 
-Version 0.9.1
+Version 0.9.1 (2013-06-01)
 
 - Add PYTRACEMALLOC environment variable to trace memory allocation as early as
   possible at Python startup
