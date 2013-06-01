@@ -1,6 +1,6 @@
 diff -r d96979620c18 Include/objimpl.h
 --- a/Include/objimpl.h	Fri May 17 00:19:59 2013 +0200
-+++ b/Include/objimpl.h	Sat Jun 01 03:01:44 2013 +0200
++++ b/Include/objimpl.h	Sat Jun 01 18:46:19 2013 +0200
 @@ -98,6 +98,14 @@ PyAPI_FUNC(void *) PyObject_Malloc(size_
  PyAPI_FUNC(void *) PyObject_Realloc(void *, size_t);
  PyAPI_FUNC(void) PyObject_Free(void *);
@@ -51,7 +51,7 @@ diff -r d96979620c18 Include/objimpl.h
   * Generic object allocator interface
 diff -r d96979620c18 Include/pymem.h
 --- a/Include/pymem.h	Fri May 17 00:19:59 2013 +0200
-+++ b/Include/pymem.h	Sat Jun 01 03:01:44 2013 +0200
++++ b/Include/pymem.h	Sat Jun 01 18:46:19 2013 +0200
 @@ -49,6 +49,24 @@ extern "C" {
     performed on failure (no exception is set, no warning is printed, etc).
  */
@@ -110,7 +110,7 @@ diff -r d96979620c18 Include/pymem.h
   * Type-oriented memory interface
 diff -r d96979620c18 Objects/classobject.c
 --- a/Objects/classobject.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/classobject.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/classobject.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -53,6 +53,7 @@ PyMethod_New(PyObject *func, PyObject *s
      if (im != NULL) {
          free_list = (PyMethodObject *)(im->im_self);
@@ -129,7 +129,7 @@ diff -r d96979620c18 Objects/classobject.c
          numfree++;
 diff -r d96979620c18 Objects/dictobject.c
 --- a/Objects/dictobject.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/dictobject.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/dictobject.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -394,6 +394,7 @@ new_dict(PyDictKeysObject *keys, PyObjec
          assert (mp != NULL);
          assert (Py_TYPE(mp) == &PyDict_Type);
@@ -152,7 +152,7 @@ diff -r d96979620c18 Objects/dictobject.c
      Py_TRASHCAN_SAFE_END(mp)
 diff -r d96979620c18 Objects/floatobject.c
 --- a/Objects/floatobject.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/floatobject.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/floatobject.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -118,13 +118,16 @@ PyFloat_FromDouble(double fval)
      if (op != NULL) {
          free_list = (PyFloatObject *) Py_TYPE(op);
@@ -182,7 +182,7 @@ diff -r d96979620c18 Objects/floatobject.c
          free_list = op;
 diff -r d96979620c18 Objects/frameobject.c
 --- a/Objects/frameobject.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/frameobject.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/frameobject.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -448,9 +448,12 @@ frame_dealloc(PyFrameObject *f)
      Py_CLEAR(f->f_exc_traceback);
  
@@ -223,7 +223,7 @@ diff -r d96979620c18 Objects/frameobject.c
      }
 diff -r d96979620c18 Objects/listobject.c
 --- a/Objects/listobject.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/listobject.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/listobject.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -155,6 +155,7 @@ PyList_New(Py_ssize_t size)
  #ifdef SHOW_ALLOC_COUNT
          count_reuse++;
@@ -246,7 +246,7 @@ diff -r d96979620c18 Objects/listobject.c
      Py_TRASHCAN_SAFE_END(op)
 diff -r d96979620c18 Objects/methodobject.c
 --- a/Objects/methodobject.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/methodobject.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/methodobject.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -30,6 +30,7 @@ PyCFunction_NewEx(PyMethodDef *ml, PyObj
      if (op != NULL) {
          free_list = (PyCFunctionObject *)(op->m_self);
@@ -265,7 +265,7 @@ diff -r d96979620c18 Objects/methodobject.c
          numfree++;
 diff -r d96979620c18 Objects/object.c
 --- a/Objects/object.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/object.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/object.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -1859,26 +1859,6 @@ PyTypeObject *_PyCapsule_hack = &PyCapsu
  Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
  
@@ -295,7 +295,7 @@ diff -r d96979620c18 Objects/object.c
  {
 diff -r d96979620c18 Objects/obmalloc.c
 --- a/Objects/obmalloc.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/obmalloc.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/obmalloc.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -1,5 +1,197 @@
  #include "Python.h"
  
@@ -739,7 +739,7 @@ diff -r d96979620c18 Objects/obmalloc.c
  
 diff -r d96979620c18 Objects/setobject.c
 --- a/Objects/setobject.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/setobject.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/setobject.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -569,8 +569,10 @@ set_dealloc(PySetObject *so)
      }
      if (so->table != so->smalltable)
@@ -762,7 +762,7 @@ diff -r d96979620c18 Objects/setobject.c
          if (so == NULL)
 diff -r d96979620c18 Objects/tupleobject.c
 --- a/Objects/tupleobject.c	Fri May 17 00:19:59 2013 +0200
-+++ b/Objects/tupleobject.c	Sat Jun 01 03:01:44 2013 +0200
++++ b/Objects/tupleobject.c	Sat Jun 01 18:46:19 2013 +0200
 @@ -92,6 +92,7 @@ PyTuple_New(register Py_ssize_t size)
          Py_TYPE(op) = &PyTuple_Type;
  #endif
@@ -779,3 +779,52 @@ diff -r d96979620c18 Objects/tupleobject.c
              op->ob_item[0] = (PyObject *) free_list[len];
              numfree[len]++;
              free_list[len] = op;
+diff -r d96979620c18 Python/pythonrun.c
+--- a/Python/pythonrun.c	Fri May 17 00:19:59 2013 +0200
++++ b/Python/pythonrun.c	Sat Jun 01 18:46:19 2013 +0200
+@@ -258,6 +258,35 @@ import_init(PyInterpreterState *interp, 
+     _PyImportZip_Init();
+ }
+ 
++static void
++inittracemalloc(void)
++{
++    PyObject *mod = NULL, *enable = NULL, *res = NULL;
++
++    mod = PyImport_ImportModule("_tracemalloc");
++    if (mod == NULL)
++        goto error;
++
++    enable = PyObject_GetAttrString(mod, "enable");
++    if (enable == NULL)
++        goto error;
++
++    res = PyObject_CallFunction(enable, NULL);
++    if (res == NULL)
++        goto error;
++
++    fprintf(stderr, "tracemalloc enabled\n");
++    goto done;
++
++error:
++    fprintf(stderr, "failed to enable tracemalloc:\n");
++    PyErr_Print();
++
++done:
++    Py_XDECREF(mod);
++    Py_XDECREF(enable);
++    Py_XDECREF(res);
++}
+ 
+ void
+ _Py_InitializeEx_Private(int install_sigs, int install_importlib)
+@@ -394,6 +423,9 @@ void
+     if (install_sigs)
+         initsigs(); /* Signal handling stuff, including initintr() */
+ 
++    if ((p = Py_GETENV("PYTRACEMALLOC")) && *p != '\0')
++        inittracemalloc();
++
+     initmain(interp); /* Module __main__ */
+     if (initstdio() < 0)
+         Py_FatalError(

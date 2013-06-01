@@ -1,6 +1,6 @@
-diff -r 6aab72424063 Include/objimpl.h
---- a/Include/objimpl.h	Sun Mar 17 21:28:29 2013 -0700
-+++ b/Include/objimpl.h	Wed Mar 20 01:09:41 2013 +0100
+diff -r 676bd3718892 Include/objimpl.h
+--- a/Include/objimpl.h	Sat Jun 01 03:00:05 2013 +0200
++++ b/Include/objimpl.h	Sat Jun 01 19:00:22 2013 +0200
 @@ -99,9 +99,7 @@ PyAPI_FUNC(void *) PyObject_Realloc(void
  PyAPI_FUNC(void) PyObject_Free(void *);
  
@@ -44,9 +44,9 @@ diff -r 6aab72424063 Include/objimpl.h
  
  /* for source compatibility with 2.2 */
  #define _PyObject_Del           PyObject_Free
-diff -r 6aab72424063 Include/pymem.h
---- a/Include/pymem.h	Sun Mar 17 21:28:29 2013 -0700
-+++ b/Include/pymem.h	Wed Mar 20 01:09:41 2013 +0100
+diff -r 676bd3718892 Include/pymem.h
+--- a/Include/pymem.h	Sat Jun 01 03:00:05 2013 +0200
++++ b/Include/pymem.h	Sat Jun 01 19:00:22 2013 +0200
 @@ -49,6 +49,24 @@ extern "C" {
     performed on failure (no exception is set, no warning is printed, etc).
  */
@@ -103,9 +103,9 @@ diff -r 6aab72424063 Include/pymem.h
  
  /*
   * Type-oriented memory interface
-diff -r 6aab72424063 Objects/object.c
---- a/Objects/object.c	Sun Mar 17 21:28:29 2013 -0700
-+++ b/Objects/object.c	Wed Mar 20 01:09:41 2013 +0100
+diff -r 676bd3718892 Objects/object.c
+--- a/Objects/object.c	Sat Jun 01 03:00:05 2013 +0200
++++ b/Objects/object.c	Sat Jun 01 19:00:22 2013 +0200
 @@ -2335,27 +2335,6 @@ PyTypeObject *_Py_cobject_hack = &PyCObj
  Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
  
@@ -134,9 +134,9 @@ diff -r 6aab72424063 Objects/object.c
  /* These methods are used to control infinite recursion in repr, str, print,
     etc.  Container objects that may recursively contain themselves,
     e.g. builtin dictionaries and lists, should used Py_ReprEnter() and
-diff -r 6aab72424063 Objects/obmalloc.c
---- a/Objects/obmalloc.c	Sun Mar 17 21:28:29 2013 -0700
-+++ b/Objects/obmalloc.c	Wed Mar 20 01:09:41 2013 +0100
+diff -r 676bd3718892 Objects/obmalloc.c
+--- a/Objects/obmalloc.c	Sat Jun 01 03:00:05 2013 +0200
++++ b/Objects/obmalloc.c	Sat Jun 01 19:00:22 2013 +0200
 @@ -1,5 +1,186 @@
  #include "Python.h"
  
@@ -525,3 +525,53 @@ diff -r 6aab72424063 Objects/obmalloc.c
      if (q == NULL)
          return NULL;
  
+diff -r 676bd3718892 Python/pythonrun.c
+--- a/Python/pythonrun.c	Sat Jun 01 03:00:05 2013 +0200
++++ b/Python/pythonrun.c	Sat Jun 01 19:00:22 2013 +0200
+@@ -132,6 +132,36 @@ add_flag(int flag, const char *envs)
+     return flag;
+ }
+ 
++static void
++inittracemalloc(void)
++{
++    PyObject *mod = NULL, *enable = NULL, *res = NULL;
++
++    mod = PyImport_ImportModule("_tracemalloc");
++    if (mod == NULL)
++        goto error;
++
++    enable = PyObject_GetAttrString(mod, "enable");
++    if (enable == NULL)
++        goto error;
++
++    res = PyObject_CallFunction(enable, NULL);
++    if (res == NULL)
++        goto error;
++
++    fprintf(stderr, "tracemalloc enabled\n");
++    goto done;
++
++error:
++    fprintf(stderr, "failed to enable tracemalloc:\n");
++    PyErr_Print();
++
++done:
++    Py_XDECREF(mod);
++    Py_XDECREF(enable);
++    Py_XDECREF(res);
++}
++
+ void
+ Py_InitializeEx(int install_sigs)
+ {
+@@ -245,6 +275,9 @@ Py_InitializeEx(int install_sigs)
+     if (install_sigs)
+         initsigs(); /* Signal handling stuff, including initintr() */
+ 
++    if ((p = Py_GETENV("PYTRACEMALLOC")) && *p != '\0')
++        inittracemalloc();
++
+     /* Initialize warnings. */
+     _PyWarnings_Init();
+     if (PySys_HasWarnOptions()) {

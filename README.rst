@@ -109,6 +109,30 @@ It is also possible to take a snapshot explicitly::
    snapshot.write(filename)
 
 
+PYTRACEMALLOC environment variable
+==================================
+
+Set PYTRACEMALLOC environment variable to 1 to trace memory allocations at
+Python startup (call tracemalloc.enable()): "tracemalloc enabled" message
+should be written to the standard error stream (stderr).
+
+Example::
+
+    $ PYTRACEMALLOC=1 python3.4 -q
+    tracemalloc enabled
+    >>> import tracemalloc
+    >>> tracemalloc.DisplayTop(5).display()
+    2013-06-01 18:51:48: Top 5 allocations per file
+    #1: <frozen importlib._bootstrap>: size=1267 KiB, count=10277, average=126 B
+    #2: .../Lib/collections/__init__.py: size=119 KiB, count=636, average=192 B
+    #3: .../default/Lib/_weakrefset.py: size=98 KiB, count=751, average=133 B
+    #4: .../default/Lib/abc.py: size=91 KiB, count=443, average=212 B
+    #5: .../default/Lib/sysconfig.py: size=58 KiB, count=53, average=1134 B
+    27 more: size=310 KiB, count=1469, average=216 B
+    Total Python memory: size=1945 KiB, count=13629, average=146 B
+    Total process memory: size=10 MiB (ignore tracemalloc: 23 KiB)
+
+
 Installation
 ============
 
@@ -324,10 +348,12 @@ Changelog
 
 Version 0.9.1
 
-- Fix pythonXXX_track_free_list.patch patches for zombie frames
+- Add PYTRACEMALLOC environment variable to trace memory allocation as early as
+  possible at Python startup
 - Disable the timer while calling its callback to not call the callback
   while it is running
-- Use also MiB, GiB and TiB units (not only B and KiB) to format a size
+- Fix pythonXXX_track_free_list.patch patches for zombie frames
+- Use also MiB, GiB and TiB units to format a size, not only B and KiB
 
 Version 0.9 (2013-05-31)
 

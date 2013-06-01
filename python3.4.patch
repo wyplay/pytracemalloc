@@ -1,6 +1,6 @@
-diff -r 0ebc9005cb00 Include/objimpl.h
---- a/Include/objimpl.h	Thu May 30 21:08:49 2013 -0400
-+++ b/Include/objimpl.h	Fri May 31 11:17:14 2013 +0200
+diff -r d96979620c18 Include/objimpl.h
+--- a/Include/objimpl.h	Fri May 17 00:19:59 2013 +0200
++++ b/Include/objimpl.h	Sat Jun 01 18:57:24 2013 +0200
 @@ -119,28 +119,15 @@ PyAPI_FUNC(void) _PyObject_DebugCheckAdd
  PyAPI_FUNC(void *) _PyMem_DebugMalloc(size_t nbytes);
  PyAPI_FUNC(void *) _PyMem_DebugRealloc(void *p, size_t nbytes);
@@ -34,9 +34,9 @@ diff -r 0ebc9005cb00 Include/objimpl.h
  
  /*
   * Generic object allocator interface
-diff -r 0ebc9005cb00 Include/pymem.h
---- a/Include/pymem.h	Thu May 30 21:08:49 2013 -0400
-+++ b/Include/pymem.h	Fri May 31 11:17:14 2013 +0200
+diff -r d96979620c18 Include/pymem.h
+--- a/Include/pymem.h	Fri May 17 00:19:59 2013 +0200
++++ b/Include/pymem.h	Sat Jun 01 18:57:24 2013 +0200
 @@ -49,6 +49,24 @@ extern "C" {
     performed on failure (no exception is set, no warning is printed, etc).
  */
@@ -93,9 +93,9 @@ diff -r 0ebc9005cb00 Include/pymem.h
  
  /*
   * Type-oriented memory interface
-diff -r 0ebc9005cb00 Objects/object.c
---- a/Objects/object.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/object.c	Fri May 31 11:17:14 2013 +0200
+diff -r d96979620c18 Objects/object.c
+--- a/Objects/object.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/object.c	Sat Jun 01 18:57:24 2013 +0200
 @@ -1859,26 +1859,6 @@ PyTypeObject *_PyCapsule_hack = &PyCapsu
  Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
  
@@ -123,9 +123,9 @@ diff -r 0ebc9005cb00 Objects/object.c
  void
  _PyObject_DebugTypeStats(FILE *out)
  {
-diff -r 0ebc9005cb00 Objects/obmalloc.c
---- a/Objects/obmalloc.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/obmalloc.c	Fri May 31 11:17:14 2013 +0200
+diff -r d96979620c18 Objects/obmalloc.c
+--- a/Objects/obmalloc.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/obmalloc.c	Sat Jun 01 18:57:24 2013 +0200
 @@ -1,5 +1,186 @@
  #include "Python.h"
  
@@ -526,3 +526,52 @@ diff -r 0ebc9005cb00 Objects/obmalloc.c
      if (q == NULL)
          return NULL;
  
+diff -r d96979620c18 Python/pythonrun.c
+--- a/Python/pythonrun.c	Fri May 17 00:19:59 2013 +0200
++++ b/Python/pythonrun.c	Sat Jun 01 18:57:24 2013 +0200
+@@ -258,6 +258,35 @@ import_init(PyInterpreterState *interp, 
+     _PyImportZip_Init();
+ }
+ 
++static void
++inittracemalloc(void)
++{
++    PyObject *mod = NULL, *enable = NULL, *res = NULL;
++
++    mod = PyImport_ImportModule("_tracemalloc");
++    if (mod == NULL)
++        goto error;
++
++    enable = PyObject_GetAttrString(mod, "enable");
++    if (enable == NULL)
++        goto error;
++
++    res = PyObject_CallFunction(enable, NULL);
++    if (res == NULL)
++        goto error;
++
++    fprintf(stderr, "tracemalloc enabled\n");
++    goto done;
++
++error:
++    fprintf(stderr, "failed to enable tracemalloc:\n");
++    PyErr_Print();
++
++done:
++    Py_XDECREF(mod);
++    Py_XDECREF(enable);
++    Py_XDECREF(res);
++}
+ 
+ void
+ _Py_InitializeEx_Private(int install_sigs, int install_importlib)
+@@ -394,6 +423,9 @@ void
+     if (install_sigs)
+         initsigs(); /* Signal handling stuff, including initintr() */
+ 
++    if ((p = Py_GETENV("PYTRACEMALLOC")) && *p != '\0')
++        inittracemalloc();
++
+     initmain(interp); /* Module __main__ */
+     if (initstdio() < 0)
+         Py_FatalError(

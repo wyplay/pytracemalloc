@@ -1,6 +1,6 @@
 diff -r 676bd3718892 Include/objimpl.h
 --- a/Include/objimpl.h	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Include/objimpl.h	Sat Jun 01 03:28:30 2013 +0200
++++ b/Include/objimpl.h	Sat Jun 01 18:49:19 2013 +0200
 @@ -98,10 +98,15 @@ PyAPI_FUNC(void *) PyObject_Malloc(size_
  PyAPI_FUNC(void *) PyObject_Realloc(void *, size_t);
  PyAPI_FUNC(void) PyObject_Free(void *);
@@ -54,7 +54,7 @@ diff -r 676bd3718892 Include/objimpl.h
  #define _PyObject_Del           PyObject_Free
 diff -r 676bd3718892 Include/pymem.h
 --- a/Include/pymem.h	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Include/pymem.h	Sat Jun 01 03:28:30 2013 +0200
++++ b/Include/pymem.h	Sat Jun 01 18:49:19 2013 +0200
 @@ -49,6 +49,24 @@ extern "C" {
     performed on failure (no exception is set, no warning is printed, etc).
  */
@@ -113,7 +113,7 @@ diff -r 676bd3718892 Include/pymem.h
   * Type-oriented memory interface
 diff -r 676bd3718892 Objects/classobject.c
 --- a/Objects/classobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/classobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/classobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -2257,6 +2257,7 @@ PyMethod_New(PyObject *func, PyObject *s
      if (im != NULL) {
          free_list = (PyMethodObject *)(im->im_self);
@@ -132,7 +132,7 @@ diff -r 676bd3718892 Objects/classobject.c
          numfree++;
 diff -r 676bd3718892 Objects/dictobject.c
 --- a/Objects/dictobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/dictobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/dictobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -267,6 +267,7 @@ PyDict_New(void)
                 if an empty but presized dict is added to freelist */
              INIT_NONZERO_DICT_SLOTS(mp);
@@ -155,7 +155,7 @@ diff -r 676bd3718892 Objects/dictobject.c
      Py_TRASHCAN_SAFE_END(mp)
 diff -r 676bd3718892 Objects/floatobject.c
 --- a/Objects/floatobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/floatobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/floatobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -150,6 +150,7 @@ PyFloat_FromDouble(double fval)
      op = free_list;
      free_list = (PyFloatObject *)Py_TYPE(op);
@@ -174,7 +174,7 @@ diff -r 676bd3718892 Objects/floatobject.c
      }
 diff -r 676bd3718892 Objects/frameobject.c
 --- a/Objects/frameobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/frameobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/frameobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -475,9 +475,12 @@ frame_dealloc(PyFrameObject *f)
      Py_CLEAR(f->f_exc_traceback);
  
@@ -207,7 +207,7 @@ diff -r 676bd3718892 Objects/frameobject.c
          f->f_code = code;
 diff -r 676bd3718892 Objects/intobject.c
 --- a/Objects/intobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/intobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/intobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -108,6 +108,7 @@ PyInt_FromLong(long ival)
      v = free_list;
      free_list = (PyIntObject *)Py_TYPE(v);
@@ -234,7 +234,7 @@ diff -r 676bd3718892 Objects/intobject.c
      }
 diff -r 676bd3718892 Objects/listobject.c
 --- a/Objects/listobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/listobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/listobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -134,6 +134,7 @@ PyList_New(Py_ssize_t size)
      if (numfree) {
          numfree--;
@@ -257,7 +257,7 @@ diff -r 676bd3718892 Objects/listobject.c
      Py_TRASHCAN_SAFE_END(op)
 diff -r 676bd3718892 Objects/methodobject.c
 --- a/Objects/methodobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/methodobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/methodobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -21,6 +21,7 @@ PyCFunction_NewEx(PyMethodDef *ml, PyObj
      if (op != NULL) {
          free_list = (PyCFunctionObject *)(op->m_self);
@@ -276,7 +276,7 @@ diff -r 676bd3718892 Objects/methodobject.c
          numfree++;
 diff -r 676bd3718892 Objects/object.c
 --- a/Objects/object.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/object.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/object.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -2335,27 +2335,6 @@ PyTypeObject *_Py_cobject_hack = &PyCObj
  Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
  
@@ -307,7 +307,7 @@ diff -r 676bd3718892 Objects/object.c
     e.g. builtin dictionaries and lists, should used Py_ReprEnter() and
 diff -r 676bd3718892 Objects/obmalloc.c
 --- a/Objects/obmalloc.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/obmalloc.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/obmalloc.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -1,5 +1,197 @@
  #include "Python.h"
  
@@ -741,7 +741,7 @@ diff -r 676bd3718892 Objects/obmalloc.c
  
 diff -r 676bd3718892 Objects/setobject.c
 --- a/Objects/setobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/setobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/setobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -566,8 +566,10 @@ set_dealloc(PySetObject *so)
      }
      if (so->table != so->smalltable)
@@ -764,7 +764,7 @@ diff -r 676bd3718892 Objects/setobject.c
          so = (PySetObject *)type->tp_alloc(type, 0);
 diff -r 676bd3718892 Objects/tupleobject.c
 --- a/Objects/tupleobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/tupleobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/tupleobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -75,6 +75,7 @@ PyTuple_New(register Py_ssize_t size)
          Py_TYPE(op) = &PyTuple_Type;
  #endif
@@ -783,7 +783,7 @@ diff -r 676bd3718892 Objects/tupleobject.c
              free_list[len] = op;
 diff -r 676bd3718892 Objects/unicodeobject.c
 --- a/Objects/unicodeobject.c	Sat Jun 01 03:00:05 2013 +0200
-+++ b/Objects/unicodeobject.c	Sat Jun 01 03:28:30 2013 +0200
++++ b/Objects/unicodeobject.c	Sat Jun 01 18:49:19 2013 +0200
 @@ -348,6 +348,7 @@ PyUnicodeObject *_PyUnicode_New(Py_ssize
              unicode->str = (Py_UNICODE*) PyObject_MALLOC(new_size);
          }
@@ -800,3 +800,53 @@ diff -r 676bd3718892 Objects/unicodeobject.c
          /* Keep-Alive optimization */
          if (unicode->length >= KEEPALIVE_SIZE_LIMIT) {
              PyObject_DEL(unicode->str);
+diff -r 676bd3718892 Python/pythonrun.c
+--- a/Python/pythonrun.c	Sat Jun 01 03:00:05 2013 +0200
++++ b/Python/pythonrun.c	Sat Jun 01 18:49:19 2013 +0200
+@@ -132,6 +132,36 @@ add_flag(int flag, const char *envs)
+     return flag;
+ }
+ 
++static void
++inittracemalloc(void)
++{
++    PyObject *mod = NULL, *enable = NULL, *res = NULL;
++
++    mod = PyImport_ImportModule("_tracemalloc");
++    if (mod == NULL)
++        goto error;
++
++    enable = PyObject_GetAttrString(mod, "enable");
++    if (enable == NULL)
++        goto error;
++
++    res = PyObject_CallFunction(enable, NULL);
++    if (res == NULL)
++        goto error;
++
++    fprintf(stderr, "tracemalloc enabled\n");
++    goto done;
++
++error:
++    fprintf(stderr, "failed to enable tracemalloc:\n");
++    PyErr_Print();
++
++done:
++    Py_XDECREF(mod);
++    Py_XDECREF(enable);
++    Py_XDECREF(res);
++}
++
+ void
+ Py_InitializeEx(int install_sigs)
+ {
+@@ -245,6 +275,9 @@ Py_InitializeEx(int install_sigs)
+     if (install_sigs)
+         initsigs(); /* Signal handling stuff, including initintr() */
+ 
++    if ((p = Py_GETENV("PYTRACEMALLOC")) && *p != '\0')
++        inittracemalloc();
++
+     /* Initialize warnings. */
+     _PyWarnings_Init();
+     if (PySys_HasWarnOptions()) {
