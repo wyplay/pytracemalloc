@@ -106,6 +106,10 @@ trace_timer_call(void *user_data)
     result = PyEval_CallObjectWithKeywords(trace_timer.callback,
                                            trace_timer.args,
                                            trace_timer.kwargs);
+
+    trace_timer.enabled = 1;
+    trace_timer.next_trigger = time(NULL) + trace_timer.delay;
+
     if (!result)
         return -1;
     Py_DECREF(result);
@@ -119,8 +123,6 @@ trace_update_stats(int is_alloc, trace_alloc_t *trace)
     int is_new_trace;
     GHashTable *line_hash;
     gpointer key;
-
-    assert(trace->filename != NULL);
 
     line_hash = g_hash_table_lookup(trace_files, trace->filename);
     if (line_hash == NULL) {
@@ -168,13 +170,17 @@ trace_update_stats(int is_alloc, trace_alloc_t *trace)
 static void
 trace_timer_check(void)
 {
-    if (!trace_timer.enabled)
-        return;
+    int res;
+
     if (time(NULL) < trace_timer.next_trigger)
         return;
 
-    Py_AddPendingCall(trace_timer_call, NULL);
-    trace_timer.next_trigger = time(NULL) + trace_timer.delay;
+    res = Py_AddPendingCall(trace_timer_call, NULL);
+    if (res != 0)
+        return;
+
+    /* don't schedule a new call before the previous call is done */
+    trace_timer.enabled = 0;
 }
 
 static void
@@ -199,7 +205,8 @@ trace_log_alloc(void *ptr, trace_alloc_t *trace)
 
     trace_update_stats(1, trace);
 
-    trace_timer_check();
+    if (trace_timer.enabled)
+        trace_timer_check();
 }
 
 static void
@@ -210,7 +217,8 @@ trace_log_dealloc(void *ptr, trace_alloc_t *trace)
     g_hash_table_remove(trace_allocs, ptr);
     trace_free_trace(trace);
 
-    trace_timer_check();
+    if (trace_timer.enabled)
+        trace_timer_check();
 }
 
 static void *

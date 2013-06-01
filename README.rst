@@ -324,6 +324,8 @@ Changelog
 
 Version 0.9.1
 
+- Disable the timer while calling its callback to not call the callback
+  while it is running
 - Use also MiB, GiB and TiB units (not only B and KiB) to format a size
 
 Version 0.9 (2013-05-31)
