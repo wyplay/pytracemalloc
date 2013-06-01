@@ -1,10 +1,13 @@
-diff -r 0ebc9005cb00 Include/objimpl.h
---- a/Include/objimpl.h	Thu May 30 21:08:49 2013 -0400
-+++ b/Include/objimpl.h	Fri May 31 11:25:54 2013 +0200
-@@ -98,6 +98,11 @@ PyAPI_FUNC(void *) PyObject_Malloc(size_
+diff -r d96979620c18 Include/objimpl.h
+--- a/Include/objimpl.h	Fri May 17 00:19:59 2013 +0200
++++ b/Include/objimpl.h	Sat Jun 01 03:01:44 2013 +0200
+@@ -98,6 +98,14 @@ PyAPI_FUNC(void *) PyObject_Malloc(size_
  PyAPI_FUNC(void *) PyObject_Realloc(void *, size_t);
  PyAPI_FUNC(void) PyObject_Free(void *);
  
++PyAPI_FUNC(void) _PyFreeList_Alloc(void *);
++PyAPI_FUNC(void) _PyFreeList_Free(void *);
++
 +PyAPI_FUNC(int) _PyFreeList_SetAllocators(
 +    void (*alloc) (PyObject *),
 +    void (*free) (PyObject *)
@@ -13,7 +16,7 @@ diff -r 0ebc9005cb00 Include/objimpl.h
  /* This function returns the number of allocated memory blocks, regardless of size */
  PyAPI_FUNC(Py_ssize_t) _Py_GetAllocatedBlocks(void);
  
-@@ -119,28 +124,15 @@ PyAPI_FUNC(void) _PyObject_DebugCheckAdd
+@@ -119,28 +127,15 @@ PyAPI_FUNC(void) _PyObject_DebugCheckAdd
  PyAPI_FUNC(void *) _PyMem_DebugMalloc(size_t nbytes);
  PyAPI_FUNC(void *) _PyMem_DebugRealloc(void *p, size_t nbytes);
  PyAPI_FUNC(void) _PyMem_DebugFree(void *p);
@@ -46,9 +49,9 @@ diff -r 0ebc9005cb00 Include/objimpl.h
  
  /*
   * Generic object allocator interface
-diff -r 0ebc9005cb00 Include/pymem.h
---- a/Include/pymem.h	Thu May 30 21:08:49 2013 -0400
-+++ b/Include/pymem.h	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Include/pymem.h
+--- a/Include/pymem.h	Fri May 17 00:19:59 2013 +0200
++++ b/Include/pymem.h	Sat Jun 01 03:01:44 2013 +0200
 @@ -49,6 +49,24 @@ extern "C" {
     performed on failure (no exception is set, no warning is printed, etc).
  */
@@ -105,9 +108,9 @@ diff -r 0ebc9005cb00 Include/pymem.h
  
  /*
   * Type-oriented memory interface
-diff -r 0ebc9005cb00 Objects/classobject.c
---- a/Objects/classobject.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/classobject.c	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Objects/classobject.c
+--- a/Objects/classobject.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/classobject.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -53,6 +53,7 @@ PyMethod_New(PyObject *func, PyObject *s
      if (im != NULL) {
          free_list = (PyMethodObject *)(im->im_self);
@@ -124,9 +127,9 @@ diff -r 0ebc9005cb00 Objects/classobject.c
          im->im_self = (PyObject *)free_list;
          free_list = im;
          numfree++;
-diff -r 0ebc9005cb00 Objects/dictobject.c
---- a/Objects/dictobject.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/dictobject.c	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Objects/dictobject.c
+--- a/Objects/dictobject.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/dictobject.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -394,6 +394,7 @@ new_dict(PyDictKeysObject *keys, PyObjec
          assert (mp != NULL);
          assert (Py_TYPE(mp) == &PyDict_Type);
@@ -147,9 +150,9 @@ diff -r 0ebc9005cb00 Objects/dictobject.c
      else
          Py_TYPE(mp)->tp_free((PyObject *)mp);
      Py_TRASHCAN_SAFE_END(mp)
-diff -r 0ebc9005cb00 Objects/floatobject.c
---- a/Objects/floatobject.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/floatobject.c	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Objects/floatobject.c
+--- a/Objects/floatobject.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/floatobject.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -118,13 +118,16 @@ PyFloat_FromDouble(double fval)
      if (op != NULL) {
          free_list = (PyFloatObject *) Py_TYPE(op);
@@ -177,28 +180,50 @@ diff -r 0ebc9005cb00 Objects/floatobject.c
          numfree++;
          Py_TYPE(op) = (struct _typeobject *)free_list;
          free_list = op;
-diff -r 0ebc9005cb00 Objects/frameobject.c
---- a/Objects/frameobject.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/frameobject.c	Fri May 31 11:25:54 2013 +0200
-@@ -451,6 +451,7 @@ frame_dealloc(PyFrameObject *f)
-     if (co->co_zombieframe == NULL)
+diff -r d96979620c18 Objects/frameobject.c
+--- a/Objects/frameobject.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/frameobject.c	Sat Jun 01 03:01:44 2013 +0200
+@@ -448,9 +448,12 @@ frame_dealloc(PyFrameObject *f)
+     Py_CLEAR(f->f_exc_traceback);
+ 
+     co = f->f_code;
+-    if (co->co_zombieframe == NULL)
++    if (co->co_zombieframe == NULL) {
++        _PyFreeList_Free(f);
          co->co_zombieframe = f;
++    }
      else if (numfree < PyFrame_MAXFREELIST) {
 +        _PyFreeList_Free(f);
          ++numfree;
          f->f_back = free_list;
          free_list = f;
-@@ -642,6 +643,7 @@ PyFrame_New(PyThreadState *tstate, PyCod
+@@ -641,6 +644,7 @@ PyFrame_New(PyThreadState *tstate, PyCod
+         f = code->co_zombieframe;
          code->co_zombieframe = NULL;
          _Py_NewReference((PyObject *)f);
-         assert(f->f_code == code);
 +        _PyFreeList_Alloc(f);
+         assert(f->f_code == code);
      }
      else {
-         Py_ssize_t extras, ncells, nfrees;
-diff -r 0ebc9005cb00 Objects/listobject.c
---- a/Objects/listobject.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/listobject.c	Fri May 31 11:25:54 2013 +0200
+@@ -672,6 +676,7 @@ PyFrame_New(PyThreadState *tstate, PyCod
+                 f = new_f;
+             }
+             _Py_NewReference((PyObject *)f);
++            _PyFreeList_Alloc(f);
+         }
+ 
+         f->f_code = code;
+@@ -941,6 +946,7 @@ PyFrame_ClearFreeList(void)
+     while (free_list != NULL) {
+         PyFrameObject *f = free_list;
+         free_list = free_list->f_back;
++        _PyFreeList_Free(f);
+         PyObject_GC_Del(f);
+         --numfree;
+     }
+diff -r d96979620c18 Objects/listobject.c
+--- a/Objects/listobject.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/listobject.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -155,6 +155,7 @@ PyList_New(Py_ssize_t size)
  #ifdef SHOW_ALLOC_COUNT
          count_reuse++;
@@ -219,9 +244,9 @@ diff -r 0ebc9005cb00 Objects/listobject.c
      else
          Py_TYPE(op)->tp_free((PyObject *)op);
      Py_TRASHCAN_SAFE_END(op)
-diff -r 0ebc9005cb00 Objects/methodobject.c
---- a/Objects/methodobject.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/methodobject.c	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Objects/methodobject.c
+--- a/Objects/methodobject.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/methodobject.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -30,6 +30,7 @@ PyCFunction_NewEx(PyMethodDef *ml, PyObj
      if (op != NULL) {
          free_list = (PyCFunctionObject *)(op->m_self);
@@ -238,9 +263,9 @@ diff -r 0ebc9005cb00 Objects/methodobject.c
          m->m_self = (PyObject *)free_list;
          free_list = m;
          numfree++;
-diff -r 0ebc9005cb00 Objects/object.c
---- a/Objects/object.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/object.c	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Objects/object.c
+--- a/Objects/object.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/object.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -1859,26 +1859,6 @@ PyTypeObject *_PyCapsule_hack = &PyCapsu
  Py_ssize_t (*_Py_abstract_hack)(PyObject *) = PyObject_Size;
  
@@ -268,9 +293,9 @@ diff -r 0ebc9005cb00 Objects/object.c
  void
  _PyObject_DebugTypeStats(FILE *out)
  {
-diff -r 0ebc9005cb00 Objects/obmalloc.c
---- a/Objects/obmalloc.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/obmalloc.c	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Objects/obmalloc.c
+--- a/Objects/obmalloc.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/obmalloc.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -1,5 +1,197 @@
  #include "Python.h"
  
@@ -712,9 +737,9 @@ diff -r 0ebc9005cb00 Objects/obmalloc.c
      if (q == NULL)
          return NULL;
  
-diff -r 0ebc9005cb00 Objects/setobject.c
---- a/Objects/setobject.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/setobject.c	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Objects/setobject.c
+--- a/Objects/setobject.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/setobject.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -569,8 +569,10 @@ set_dealloc(PySetObject *so)
      }
      if (so->table != so->smalltable)
@@ -735,9 +760,9 @@ diff -r 0ebc9005cb00 Objects/setobject.c
      } else {
          so = (PySetObject *)type->tp_alloc(type, 0);
          if (so == NULL)
-diff -r 0ebc9005cb00 Objects/tupleobject.c
---- a/Objects/tupleobject.c	Thu May 30 21:08:49 2013 -0400
-+++ b/Objects/tupleobject.c	Fri May 31 11:25:54 2013 +0200
+diff -r d96979620c18 Objects/tupleobject.c
+--- a/Objects/tupleobject.c	Fri May 17 00:19:59 2013 +0200
++++ b/Objects/tupleobject.c	Sat Jun 01 03:01:44 2013 +0200
 @@ -92,6 +92,7 @@ PyTuple_New(register Py_ssize_t size)
          Py_TYPE(op) = &PyTuple_Type;
  #endif

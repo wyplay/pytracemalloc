@@ -324,6 +324,7 @@ Changelog
 
 Version 0.9.1
 
+- Fix pythonXXX_track_free_list.patch patches for zombie frames
 - Disable the timer while calling its callback to not call the callback
   while it is running
 - Use also MiB, GiB and TiB units (not only B and KiB) to format a size
