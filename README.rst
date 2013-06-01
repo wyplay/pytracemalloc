@@ -112,7 +112,7 @@ It is also possible to take a snapshot explicitly::
 PYTRACEMALLOC environment variable
 ==================================
 
-Set PYTRACEMALLOC environment variable to 1 to trace memory allocations at
+Set ``PYTRACEMALLOC`` environment variable to 1 to trace memory allocations at
 Python startup (call tracemalloc.enable()): "tracemalloc enabled" message
 should be written to the standard error stream (stderr).
 
@@ -139,7 +139,7 @@ Installation
 Patch Python
 ------------
 
-To install pytracemalloc, uou need a modified Python runtime:
+To install pytracemalloc, you need a modified Python runtime:
 
 * Download Python source code
 * Apply a patch (see below):
@@ -151,20 +151,19 @@ To install pytracemalloc, uou need a modified Python runtime:
 
 There are 3 types of Python patch to use pytracemalloc:
 
-* Track free lists: track all Python objects. Recommended method: fast and
-  accurate.
+* Track free lists: track all Python objects. It is the recommended option.
 
   - Python 2.5.2: python2.5.2_track_free_list.patch
   - Python 2.7: python2.7_track_free_list.patch
   - Python 3.4: python3.4_track_free_list.patch
 
-* Don't track free lists: less accurate, lower performance overhead
+* Don't track free lists: less accurate, but faster.
 
   - Python 2.5.6: python2.5.6.patch
   - Python 2.7: python2.7.patch
   - Python 3.4: python3.4.patch
 
-* Disable free lists: track all Python objects, higher performance overhead
+* Disable free lists: track all Python objects, slower.
 
   - Python 2.5: python2.5_no_free_list.patch
   - Python 2.7: python2.7_no_free_list.patch
@@ -179,15 +178,13 @@ Python 3 uses free lists for the following object types:
 
 * float
 * tuple, list, set, dict
-* bound method, C function
-* frame
+* bound method, C function, frame
 
 Python 2 uses free lists for the following object types:
 
 * int, float, unicode
 * tuple, list, set, dict
-* bound method, C function
-* frame
+* bound method, C function, frame
 
 
 Compile and install pytracemalloc
@@ -203,7 +200,7 @@ Dependencies:
 
 Install::
 
-    /opt/mypython/usr/bin/python setup.py install
+    /opt/mypython/bin/python setup.py install
 
 
 API
@@ -211,12 +208,15 @@ API
 
 Call ``tracemalloc.enable()`` as early as possible to get the most complete
 statistics. Otherwise, some Python memory allocations made by your application
-will be ignored by tracemalloc.
+will be ignored by tracemalloc. Set ``PYTRACEMALLOC`` environment variable to 1
+to enable tracing at Python startup.
 
 Call ``tracemalloc.disable()`` to stop tracing memory allocations. It is
 automatically called at exit using the atexit module.
 
-The version of the module can be read as a string: ``tracemalloc.__version__``.
+The version of the module is ``tracemalloc.__version__``
+(string, ex: ``"0.9.1"``).
+
 
 Functions
 ---------
@@ -263,7 +263,7 @@ Classes
 
 * DisplayGarbage(file=sys.stdout): Display new objects added to gc.garbage. By
   default, it displays uncollectable objects, see the documentation of
-  gc.garbage. Use gc.set_debug(gc.DEBUG_SAVEALL) to display all deleted
+  gc.garbage. Use ``gc.set_debug(gc.DEBUG_SAVEALL)`` to display all deleted
   objects.
   Methods:
 
@@ -348,8 +348,8 @@ Changelog
 
 Version 0.9.1 (2013-06-01)
 
-- Add PYTRACEMALLOC environment variable to trace memory allocation as early as
-  possible at Python startup
+- Add ``PYTRACEMALLOC`` environment variable to trace memory allocation as
+  early as possible at Python startup
 - Disable the timer while calling its callback to not call the callback
   while it is running
 - Fix pythonXXX_track_free_list.patch patches for zombie frames
