@@ -322,6 +322,10 @@ Classes
 Changelog
 =========
 
+Version 0.9.1
+
+- Use also MiB, GiB and TiB units (not only B and KiB) to format a size
+
 Version 0.9 (2013-05-31)
 
 - Tracking free lists is now the recommended method to patch Python

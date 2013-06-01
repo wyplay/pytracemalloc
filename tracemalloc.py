@@ -1,5 +1,6 @@
 from __future__ import with_statement
 import datetime
+import operator
 import os
 import sys
 import types
@@ -15,24 +16,22 @@ else:
     def _iteritems(obj):
         return obj.iteritems()
 
-def _sort_key(item):
-    return item[2]
-
 def _get_timestamp():
     return str(datetime.datetime.now()).split(".")[0]
 
 def __format_size(size, sign=False):
-    kb = size // 1024
-    if abs(kb) >= 10:
-        if sign:
-            return "%+i KiB" % kb
-        else:
-            return "%i KiB" % kb
+    for unit in ('B', 'KiB', 'MiB', 'GiB'):
+        if abs(size) < 5 * 1024:
+            if sign:
+                return "%+i %s" % (size, unit)
+            else:
+                return "%i %s" % (size, unit)
+        size /= 1024
+
+    if sign:
+        return "%+i TiB" % size
     else:
-        if sign:
-            return "%+i B" % size
-        else:
-            return "%i B" % size
+        return "%i TiB" % size
 
 _FORMAT_YELLOW = '\x1b[1;33m%s\x1b[0m'
 _FORMAT_BOLD = '\x1b[1m%s\x1b[0m'
@@ -102,7 +101,7 @@ def get_process_memory():
 get_process_memory.support_proc = None
 get_process_memory.psutil_process = None
 
-
+# (size diff, size, count diff, count)
 _TRACE_ZERO = (0, 0, 0, 0)
 
 class _TopSnapshot:
@@ -137,6 +136,7 @@ class _Top:
         else:
             snapshot = None
 
+        # list of: (filename: str, line number: int, trace: tuple)
         stats = []
         if want_snapshot:
             new_snapshot = {}
@@ -248,7 +248,7 @@ class DisplayTop:
         has_snapshot = (snapshot is not None)
 
         stats = top.top_stats
-        stats.sort(key=_sort_key, reverse=True)
+        stats.sort(key=operator.itemgetter(2), reverse=True)
 
         count = min(self.top_count, len(stats))
         if self.show_lineno:
