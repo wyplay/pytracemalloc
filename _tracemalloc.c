@@ -27,9 +27,9 @@ typedef enum {
     TRACE_FREE
 } trace_func_t;
 
-typedef void* (*trace_malloc_t) (size_t);
-typedef void* (*trace_realloc_t) (void*, size_t);
-typedef void (*trace_free_t) (void*);
+typedef void* (*trace_malloc_t) (size_t, void*);
+typedef void* (*trace_realloc_t) (void*, size_t, void*);
+typedef void (*trace_free_t) (void*, void*);
 
 static struct {
     int enabled;
@@ -40,17 +40,19 @@ static struct {
     PyObject *kwargs;
 } trace_timer;
 
+typedef struct {
+    trace_malloc_t malloc;
+    trace_realloc_t realloc;
+    trace_free_t free;
+    void *data;
+} trace_api_t;
+
 static struct {
     int enabled;
     int debug;
 
-    trace_malloc_t mem_malloc;
-    trace_realloc_t mem_realloc;
-    trace_free_t mem_free;
-
-    trace_malloc_t object_malloc;
-    trace_realloc_t object_realloc;
-    trace_free_t object_free;
+    trace_api_t mem_api;
+    trace_api_t obj_api;
 } trace_config;
 
 typedef struct {
@@ -201,6 +203,7 @@ trace_log_alloc(void *ptr, trace_alloc_t *trace)
         trace->filename = "???";
     }
 
+    assert(g_hash_table_lookup(trace_allocs, ptr) == NULL);
     g_hash_table_insert(trace_allocs, ptr, trace);
 
     trace_update_stats(1, trace);
@@ -222,15 +225,19 @@ trace_log_dealloc(void *ptr, trace_alloc_t *trace)
 }
 
 static void *
-trace_malloc(trace_malloc_t func, size_t size)
+trace_malloc(size_t size, void *data)
 {
+    trace_api_t *api = (trace_api_t *)data;
     void *ptr;
     trace_alloc_t *trace;
 
     if (!trace_config.enabled)
-        return func(size);
+        return api->malloc(size, api->data);
 
-    ptr = func(size);
+    trace_config.enabled = 0;
+    ptr = api->malloc(size, api->data);
+    trace_config.enabled = 1;
+
     if (ptr == NULL)
         return NULL;
 
@@ -243,25 +250,28 @@ trace_malloc(trace_malloc_t func, size_t size)
 }
 
 static void *
-trace_realloc(trace_realloc_t func, void *ptr1, size_t size)
+trace_realloc(void *ptr1, size_t size, void *data)
 {
+    trace_api_t *api = (trace_api_t *)data;
     trace_alloc_t *trace1, *trace2;
     void *ptr2;
 
     if (!trace_config.enabled)
-        return func(ptr1, size);
+        return api->realloc(ptr1, size, api->data);
 
     if (ptr1 != NULL) {
         trace1 = g_hash_table_lookup(trace_allocs, ptr1);
         if (trace1 == NULL) {
             /* the pointer is not tracked */
-            return func(ptr1, size);
+            return api->realloc(ptr1, size, api->data);
         }
     }
     else
         trace1 = NULL;
 
-    ptr2 = func(ptr1, size);
+    trace_config.enabled = 0;
+    ptr2 = api->realloc(ptr1, size, api->data);
+    trace_config.enabled = 1;
     if (ptr2 == NULL)
         return NULL;
 
@@ -277,19 +287,22 @@ trace_realloc(trace_realloc_t func, void *ptr1, size_t size)
 }
 
 static void
-trace_free(trace_free_t func, void *ptr)
+trace_free(void *ptr, void *data)
 {
+    trace_api_t *api = (trace_api_t *)data;
     trace_alloc_t *trace;
 
     if (!trace_config.enabled) {
-        func(ptr);
+        api->free(ptr, api->data);
         return;
     }
 
     if (ptr == NULL)
         return;
 
-    func(ptr);
+    trace_config.enabled = 0;
+    api->free(ptr, api->data);
+    trace_config.enabled = 1;
 
     trace = g_hash_table_lookup(trace_allocs, ptr);
     if (trace != NULL)
@@ -343,42 +356,6 @@ trace_free_list_free(PyObject *op)
         trace_log_dealloc(ptr, trace);
 }
 #endif
-
-static void *
-trace_mem_malloc(size_t size)
-{
-    return trace_malloc(trace_config.mem_malloc, size);
-}
-
-static void *
-trace_mem_realloc(void *ptr, size_t size)
-{
-    return trace_realloc(trace_config.mem_realloc, ptr, size);
-}
-
-static void
-trace_mem_free(void *ptr)
-{
-    trace_free(trace_config.mem_free, ptr);
-}
-
-static void *
-trace_object_malloc(size_t size)
-{
-    return trace_malloc(trace_config.object_malloc, size);
-}
-
-static void *
-trace_object_realloc(void *ptr, size_t size)
-{
-    return trace_realloc(trace_config.object_realloc, ptr, size);
-}
-
-static void
-trace_object_free(void *ptr)
-{
-    trace_free(trace_config.object_free, ptr);
-}
 
 static int
 trace_init(void)
@@ -488,33 +465,41 @@ trace_get_filename(int *lineno_p)
 
 
 static int
+trace_get_api(char api_id, trace_api_t *api)
+{
+    return Py_GetAllocators(api_id,
+                            &api->malloc,
+                            &api->realloc,
+                            &api->free,
+                            &api->data);
+}
+
+static int
+trace_register_api(char api_id, trace_api_t *api)
+{
+    return Py_SetAllocators(api_id,
+                            trace_malloc,
+                            trace_realloc,
+                            trace_free,
+                            api);
+}
+
+static int
 trace_register_allocators(void)
 {
     g_hash_table_remove_all(trace_files);
     g_hash_table_remove_all(trace_allocs);
 
-    if (Py_GetAllocators(PY_ALLOC_MEM_API,
-                         &trace_config.mem_malloc,
-                         &trace_config.mem_realloc,
-                         &trace_config.mem_free) < 0)
+    if (trace_get_api(PY_ALLOC_MEM_API, &trace_config.mem_api) < 0)
         return -1;
 
-    if (Py_GetAllocators(PY_ALLOC_OBJECT_API,
-                         &trace_config.object_malloc,
-                         &trace_config.object_realloc,
-                         &trace_config.object_free) < 0)
+    if (trace_get_api(PY_ALLOC_OBJECT_API, &trace_config.obj_api) < 0)
         return -1;
 
-    if (Py_SetAllocators(PY_ALLOC_MEM_API,
-                         trace_mem_malloc,
-                         trace_mem_realloc,
-                         trace_mem_free) < 0)
+    if (trace_register_api(PY_ALLOC_MEM_API, &trace_config.mem_api) < 0)
         return -1;
 
-    if (Py_SetAllocators(PY_ALLOC_OBJECT_API,
-                         trace_object_malloc,
-                         trace_object_realloc,
-                         trace_object_free) < 0)
+    if (trace_register_api(PY_ALLOC_OBJECT_API, &trace_config.obj_api) < 0)
         return -1;
 
 #ifdef WITH_FREE_LIST
@@ -527,20 +512,22 @@ trace_register_allocators(void)
 }
 
 static int
+trace_unregister_api(char api_id, trace_api_t *api)
+{
+    return Py_SetAllocators(api_id,
+                            api->malloc, api->realloc, api->free,
+                            api->data);
+}
+
+static int
 trace_unregister_allocators(void)
 {
     int res = 0;
 
-    if (Py_SetAllocators(PY_ALLOC_MEM_API,
-                         trace_config.mem_malloc,
-                         trace_config.mem_realloc,
-                         trace_config.mem_free) < 0)
+    if (trace_unregister_api(PY_ALLOC_MEM_API, &trace_config.mem_api) < 0)
         res = -1;
 
-    if (Py_SetAllocators(PY_ALLOC_OBJECT_API,
-                         trace_config.object_malloc,
-                         trace_config.object_realloc,
-                         trace_config.object_free) < 0)
+    if (trace_unregister_api(PY_ALLOC_OBJECT_API, &trace_config.obj_api) < 0)
         res = -1;
 
     return res;
