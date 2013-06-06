@@ -203,6 +203,8 @@ trace_log_alloc(void *ptr, trace_alloc_t *trace)
         trace->filename = "???";
     }
 
+    /* If ptr is already tracked, it means that a reentrant call occurred.
+     * It must not happen. */
     assert(g_hash_table_lookup(trace_allocs, ptr) == NULL);
     g_hash_table_insert(trace_allocs, ptr, trace);
 
