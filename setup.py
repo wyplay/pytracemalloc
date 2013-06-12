@@ -53,11 +53,11 @@ def pkg_config(name, arg, strip_prefix=0):
 
 def main():
     pythonapi = ctypes.cdll.LoadLibrary(None)
-    if not hasattr(pythonapi, 'Py_SetAllocators'):
-        print("Py_SetAllocators: missing, %s has not been patched" % sys.executable)
+    if not hasattr(pythonapi, 'PyMem_SetAllocators'):
+        print("PyMem_SetAllocators: missing, %s has not been patched" % sys.executable)
         sys.exit(1)
     else:
-        print("Py_SetAllocators: present")
+        print("PyMem_SetAllocators: present")
 
     library_dirs = pkg_config("glib-2.0", "--libs-only-L", 2)
     libraries = pkg_config("glib-2.0", "--libs-only-l", 2)
