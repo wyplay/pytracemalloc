@@ -404,6 +404,8 @@ See also
 * `PySizer <http://pysizer.8325.org/>`_: developed for Python 2.4
 * `memory_profiler <https://pypi.python.org/pypi/memory_profiler>`_
 * `pympler <http://code.google.com/p/pympler/>`_
+* `memprof <http://jmdana.github.io/memprof/>`_:
+  based on sys.getsizeof() and sys.settrace()
 * `Dozer <https://pypi.python.org/pypi/Dozer>`_: WSGI Middleware version of
   the CherryPy memory leak debugger
 * `objgraph <http://mg.pov.lt/objgraph/>`_
