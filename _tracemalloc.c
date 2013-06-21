@@ -496,7 +496,7 @@ trace_get_filename(int *lineno_p)
 
 
 static int
-trace_register_allocators(void)
+trace_register_hook(void)
 {
     PyMemAllocator alloc;
 
@@ -535,7 +535,7 @@ trace_register_allocators(void)
 }
 
 static void
-trace_unregister_allocators(void)
+trace_unregister_hook(void)
 {
 #ifdef TRACE_PYMEM_RAW
     PyMem_SetAllocator(PYMEM_DOMAIN_RAW, &trace_raw_api.alloc);
@@ -553,7 +553,7 @@ static PyObject*
 py_trace_enable(PyObject *self)
 {
     if (!trace_config.enabled) {
-        if (trace_register_allocators() < 0) {
+        if (trace_register_hook() < 0) {
             PyErr_SetString(PyExc_RuntimeError,
                             "Failed to register memory allocators");
             return NULL;
@@ -591,7 +591,7 @@ py_trace_disable(PyObject *self)
         g_hash_table_remove_all(trace_allocs);
         g_hash_table_remove_all(trace_files);
 
-        trace_unregister_allocators();
+        trace_unregister_hook();
     }
 
     Py_INCREF(Py_None);
