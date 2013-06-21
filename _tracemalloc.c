@@ -152,9 +152,11 @@ trace_update_stats(int is_alloc, trace_alloc_t *trace)
 
     if (is_alloc) {
         stats->size += trace->size;
+        assert(stats->count != PY_SIZE_MAX);
         stats->count++;
     }
     else {
+        assert(stats->count != 0);
         stats->size -= trace->size;
         stats->count--;
     }
@@ -162,7 +164,7 @@ trace_update_stats(int is_alloc, trace_alloc_t *trace)
     if (is_new_trace) {
         g_hash_table_insert(line_hash, key, stats);
     }
-    else if (stats->size == 0) {
+    else if (stats->count == 0) {
         g_hash_table_remove(line_hash, key);
         if (g_hash_table_size(line_hash) == 0)
             g_hash_table_remove(trace_files, trace->filename);
