@@ -509,23 +509,20 @@ trace_register_allocators(void)
 
 #ifdef TRACE_PYMEM_RAW
     trace_raw_api.hold_gil = 0;
-    alloc.ctx = &trace_raw_api;
-    PyMem_GetAllocator(PYMEM_DOMAIN_RAW, &trace_raw_api.alloc);
-    PyMem_SetAllocator(PYMEM_DOMAIN_RAW, &alloc);
-#endif
-
-#ifdef TRACE_PYMEM_RAW
     trace_mem_api.hold_gil = 1;
-#endif
-    alloc.ctx = &trace_mem_api;
-    PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &trace_mem_api.alloc);
-    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc);
-
-#ifdef TRACE_PYMEM_RAW
     trace_obj_api.hold_gil = 1;
 #endif
-    alloc.ctx = &trace_obj_api;
+    PyMem_GetAllocator(PYMEM_DOMAIN_RAW, &trace_raw_api.alloc);
+    PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &trace_mem_api.alloc);
     PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &trace_obj_api.alloc);
+
+#ifdef TRACE_PYMEM_RAW
+    alloc.ctx = &trace_raw_api;
+    PyMem_SetAllocator(PYMEM_DOMAIN_RAW, &alloc);
+#endif
+    alloc.ctx = &trace_mem_api;
+    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc);
+    alloc.ctx = &trace_obj_api;
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
 #ifdef WITH_FREE_LIST
