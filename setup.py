@@ -22,7 +22,15 @@ import os
 import subprocess
 import sys
 
-VERSION = '0.9.1'
+# Define TRACE_PYMEM_RAW (experimental option): yes, I like to call
+# PyGILState_Ensure() when the GIL is released to track PyMem_RawMalloc()
+# and PyMem_RawRealloc() memory!
+TRACE_PYMEM_RAW = True
+
+# Debug pytracemalloc
+DEBUG = False
+
+VERSION = '0.9.2'
 
 CLASSIFIERS = [
     'Development Status :: 3 - Alpha',
@@ -53,17 +61,21 @@ def pkg_config(name, arg, strip_prefix=0):
 
 def main():
     pythonapi = ctypes.cdll.LoadLibrary(None)
-    if not hasattr(pythonapi, 'PyMem_SetAllocators'):
-        print("PyMem_SetAllocators: missing, %s has not been patched" % sys.executable)
+    if not hasattr(pythonapi, 'PyMem_SetAllocator'):
+        print("PyMem_SetAllocator: missing, %s has not been patched" % sys.executable)
         sys.exit(1)
     else:
-        print("PyMem_SetAllocators: present")
+        print("PyMem_SetAllocator: present")
 
     library_dirs = pkg_config("glib-2.0", "--libs-only-L", 2)
     libraries = pkg_config("glib-2.0", "--libs-only-l", 2)
     include_dirs = pkg_config("glib-2.0", "--cflags-only-I", 2)
     cflags = pkg_config("glib-2.0", "--cflags-only-other")
-    cflags.append('-DNDEBUG')
+
+    if TRACE_PYMEM_RAW:
+        cflags.append('-DTRACE_PYMEM_RAW')
+    if not DEBUG:
+        cflags.append('-DNDEBUG')
     if hasattr(pythonapi, '_PyFreeList_SetAllocators'):
         print("_PyFreeList_SetAllocators: present, track free lists")
         cflags.append('-DWITH_FREE_LIST')

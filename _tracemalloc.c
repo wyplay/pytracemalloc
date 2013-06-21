@@ -3,7 +3,7 @@
 #include "frameobject.h"
 #include "pythread.h"
 
-#define VERSION "0.9.1"
+#define VERSION "0.9.2"
 
 #if PY_MAJOR_VERSION >= 3
 # define PYTHON3
@@ -27,10 +27,6 @@ typedef enum {
     TRACE_FREE
 } trace_func_t;
 
-typedef void* (*trace_malloc_t) (void*, size_t);
-typedef void* (*trace_realloc_t) (void*, void*, size_t);
-typedef void (*trace_free_t) (void*, void*);
-
 static struct {
     int enabled;
     int delay;
@@ -41,10 +37,10 @@ static struct {
 } trace_timer;
 
 typedef struct {
-    void *ctx;
-    trace_malloc_t malloc;
-    trace_realloc_t realloc;
-    trace_free_t free;
+    PyMemAllocator alloc;
+#ifdef TRACE_PYMEM_RAW
+    int hold_gil;
+#endif
 } trace_api_t;
 
 static struct {
@@ -52,6 +48,9 @@ static struct {
     int debug;
 } trace_config;
 
+#ifdef TRACE_PYMEM_RAW
+static trace_api_t trace_raw_api;
+#endif
 static trace_api_t trace_mem_api;
 static trace_api_t trace_obj_api;
 
@@ -190,9 +189,11 @@ trace_timer_check(void)
 static void
 trace_log_alloc(void *ptr, trace_alloc_t *trace)
 {
-    trace_config.enabled = 0;
+#ifndef NDEBUG
+    trace_alloc_t *lookup;
+#endif
+
     trace->filename = trace_get_filename(&trace->lineno);
-    trace_config.enabled = 1;
 
     if (trace->filename != NULL) {
         trace->filename = g_intern_string(trace->filename);
@@ -207,7 +208,10 @@ trace_log_alloc(void *ptr, trace_alloc_t *trace)
 
     /* If ptr is already tracked, it means that a reentrant call occurred.
      * It must not happen. */
-    assert(g_hash_table_lookup(trace_allocs, ptr) == NULL);
+#ifndef NDEBUG
+    lookup = g_hash_table_lookup(trace_allocs, ptr);
+    assert(lookup == NULL);
+#endif
     g_hash_table_insert(trace_allocs, ptr, trace);
 
     trace_update_stats(1, trace);
@@ -215,6 +219,17 @@ trace_log_alloc(void *ptr, trace_alloc_t *trace)
     if (trace_timer.enabled)
         trace_timer_check();
 }
+
+#ifdef TRACE_PYMEM_RAW
+static void
+trace_log_alloc_gil(void *ptr, trace_alloc_t *trace)
+{
+    PyGILState_STATE gil_state;
+    gil_state = PyGILState_Ensure();
+    trace_log_alloc(ptr, trace);
+    PyGILState_Release(gil_state);
+}
+#endif
 
 static void
 trace_log_dealloc(void *ptr, trace_alloc_t *trace)
@@ -232,24 +247,29 @@ static void *
 trace_malloc(void *ctx, size_t size)
 {
     trace_api_t *api = (trace_api_t *)ctx;
+    PyMemAllocator *alloc = &api->alloc;
     void *ptr;
     trace_alloc_t *trace;
 
     if (!trace_config.enabled)
-        return api->malloc(api->ctx, size);
+        return alloc->malloc(alloc->ctx, size);
 
     trace_config.enabled = 0;
-    ptr = api->malloc(api->ctx, size);
-    trace_config.enabled = 1;
+    ptr = alloc->malloc(alloc->ctx, size);
 
-    if (ptr == NULL)
-        return NULL;
-
-    trace = trace_alloc_trace();
-    if (trace != NULL) {
-        trace->size = size;
-        trace_log_alloc(ptr, trace);
+    if (ptr != NULL) {
+        trace = trace_alloc_trace();
+        if (trace != NULL) {
+            trace->size = size;
+#ifdef TRACE_PYMEM_RAW
+            if (!api->hold_gil)
+                trace_log_alloc_gil(ptr, trace);
+            else
+#endif
+                trace_log_alloc(ptr, trace);
+        }
     }
+    trace_config.enabled = 1;
     return ptr;
 }
 
@@ -257,36 +277,42 @@ static void *
 trace_realloc(void *ctx, void *ptr1, size_t size)
 {
     trace_api_t *api = (trace_api_t *)ctx;
+    PyMemAllocator *alloc = &api->alloc;
     trace_alloc_t *trace1, *trace2;
     void *ptr2;
 
     if (!trace_config.enabled)
-        return api->realloc(api->ctx, ptr1, size);
+        return alloc->realloc(alloc->ctx, ptr1, size);
 
     if (ptr1 != NULL) {
         trace1 = g_hash_table_lookup(trace_allocs, ptr1);
         if (trace1 == NULL) {
             /* the pointer is not tracked */
-            return api->realloc(api->ctx, ptr1, size);
+            return alloc->realloc(alloc->ctx, ptr1, size);
         }
     }
     else
         trace1 = NULL;
 
     trace_config.enabled = 0;
-    ptr2 = api->realloc(api->ctx, ptr1, size);
-    trace_config.enabled = 1;
-    if (ptr2 == NULL)
-        return NULL;
+    ptr2 = alloc->realloc(alloc->ctx, ptr1, size);
 
-    if (trace1 != NULL)
-        trace_log_dealloc(ptr1, trace1);
+    if (ptr2 != NULL) {
+        if (trace1 != NULL)
+            trace_log_dealloc(ptr1, trace1);
 
-    trace2 = trace_alloc_trace();
-    if (trace2 != NULL) {
-        trace2->size = size;
-        trace_log_alloc(ptr2, trace2);
+        trace2 = trace_alloc_trace();
+        if (trace2 != NULL) {
+            trace2->size = size;
+#ifdef TRACE_PYMEM_RAW
+            if (!api->hold_gil)
+                trace_log_alloc_gil(ptr2, trace2);
+            else
+#endif
+                trace_log_alloc(ptr2, trace2);
+        }
     }
+    trace_config.enabled = 1;
     return ptr2;
 }
 
@@ -294,10 +320,11 @@ static void
 trace_free(void *ctx, void *ptr)
 {
     trace_api_t *api = (trace_api_t *)ctx;
+    PyMemAllocator *alloc = &api->alloc;
     trace_alloc_t *trace;
 
     if (!trace_config.enabled) {
-        api->free(api->ctx, ptr);
+        alloc->free(alloc->ctx, ptr);
         return;
     }
 
@@ -305,12 +332,12 @@ trace_free(void *ctx, void *ptr)
         return;
 
     trace_config.enabled = 0;
-    api->free(api->ctx, ptr);
-    trace_config.enabled = 1;
+    alloc->free(alloc->ctx, ptr);
 
     trace = g_hash_table_lookup(trace_allocs, ptr);
     if (trace != NULL)
         trace_log_dealloc(ptr, trace);
+    trace_config.enabled = 1;
 }
 
 #ifdef WITH_FREE_LIST
@@ -471,28 +498,35 @@ trace_get_filename(int *lineno_p)
 static int
 trace_register_allocators(void)
 {
+    PyMemAllocator alloc;
+
     g_hash_table_remove_all(trace_files);
     g_hash_table_remove_all(trace_allocs);
 
-    PyMem_GetAllocators(&trace_mem_api.ctx,
-                        &trace_mem_api.malloc,
-                        &trace_mem_api.realloc,
-                        &trace_mem_api.free);
+    alloc.malloc = trace_malloc;
+    alloc.realloc = trace_realloc;
+    alloc.free = trace_free;
 
-    PyObject_GetAllocators(&trace_obj_api.ctx,
-                           &trace_obj_api.malloc,
-                           &trace_obj_api.realloc,
-                           &trace_obj_api.free);
+#ifdef TRACE_PYMEM_RAW
+    trace_raw_api.hold_gil = 0;
+    alloc.ctx = &trace_raw_api;
+    PyMem_GetAllocator(PYMEM_DOMAIN_RAW, &trace_raw_api.alloc);
+    PyMem_SetAllocator(PYMEM_DOMAIN_RAW, &alloc);
+#endif
 
-    PyMem_SetAllocators(&trace_mem_api,
-                        trace_malloc,
-                        trace_realloc,
-                        trace_free);
+#ifdef TRACE_PYMEM_RAW
+    trace_mem_api.hold_gil = 1;
+#endif
+    alloc.ctx = &trace_mem_api;
+    PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &trace_mem_api.alloc);
+    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc);
 
-    PyObject_SetAllocators(&trace_obj_api,
-                           trace_malloc,
-                           trace_realloc,
-                           trace_free);
+#ifdef TRACE_PYMEM_RAW
+    trace_obj_api.hold_gil = 1;
+#endif
+    alloc.ctx = &trace_obj_api;
+    PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &trace_obj_api.alloc);
+    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
 #ifdef WITH_FREE_LIST
     if (_PyFreeList_SetAllocators(trace_free_list_alloc,
@@ -506,15 +540,11 @@ trace_register_allocators(void)
 static void
 trace_unregister_allocators(void)
 {
-    PyMem_SetAllocators(trace_mem_api.ctx,
-                        trace_mem_api.malloc,
-                        trace_mem_api.realloc,
-                        trace_mem_api.free);
-
-    PyObject_SetAllocators(trace_obj_api.ctx,
-                           trace_obj_api.malloc,
-                           trace_obj_api.realloc,
-                           trace_obj_api.free);
+#ifdef TRACE_PYMEM_RAW
+    PyMem_SetAllocator(PYMEM_DOMAIN_RAW, &trace_raw_api.alloc);
+#endif
+    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &trace_mem_api.alloc);
+    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &trace_obj_api.alloc);
 }
 
 PyDoc_STRVAR(trace_enable_doc,
