@@ -511,8 +511,8 @@ trace_register_hook(void)
     trace_raw_api.hold_gil = 0;
     trace_mem_api.hold_gil = 1;
     trace_obj_api.hold_gil = 1;
-#endif
     PyMem_GetAllocator(PYMEM_DOMAIN_RAW, &trace_raw_api.alloc);
+#endif
     PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &trace_mem_api.alloc);
     PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &trace_obj_api.alloc);
 
