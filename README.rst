@@ -1,6 +1,18 @@
-+++++++++++++
++++++++++++++++++++++++
+IMPORTANT! please read:
++++++++++++++++++++++++
+
+"pytracemalloc" is no longer maintained here.
+
+* For Python >= 3.4, the tracemalloc module has been proposed and accepted as the PEP 454 (https://www.python.org/dev/peps/pep-0454) and the code has been merged into Python 3.4,
+* For Python < 3.4, you can find the new repo here: **https://github.com/haypo/pytracemalloc**.
+
+As a consequence, this repository is now frozen, and we are no longer accepting new issues or changes to it. Instead, please see https://github.com/haypo/pytracemalloc for the official implementation.
+
+This repo and below information are kept here as an archive.
+
 pytracemalloc
-+++++++++++++
+=============
 
 Debug tool tracking Python memory allocations. Provide the following
 information:
