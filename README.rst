@@ -263,7 +263,7 @@ Functions
   timer has a resolution of 1 second.
 
   ``start_timer()`` is used by ``DisplayTop`` and ``TakeSnapshot`` to run
-  regularly a task.
+  a task regularly.
 
 - ``stop_timer()``
 
