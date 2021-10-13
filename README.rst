@@ -263,7 +263,7 @@ Functions
   timer has a resolution of 1 second.
 
   ``start_timer()`` is used by ``DisplayTop`` and ``TakeSnapshot`` to run
-  regulary a task.
+  a task regularly.
 
 - ``stop_timer()``
 
@@ -274,7 +274,7 @@ Classes
 -------
 
 * DisplayGarbage(file=sys.stdout): Display new objects added to gc.garbage. By
-  default, it displays uncollectable objects, see the documentation of
+  default, it displays uncollectible objects, see the documentation of
   gc.garbage. Use ``gc.set_debug(gc.DEBUG_SAVEALL)`` to display all deleted
   objects.
   Methods:
@@ -315,7 +315,7 @@ Classes
 
 
 * Snapshot: Snapshot of Python memory allocations. Use TakeSnapshot to
-  regulary take snapshots.
+  regularly take snapshots.
   Methods:
 
   - create(user_data_callback=None): take a snapshot. If user_data_callback
